@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Prompt Tutor - The ultimate prompt engineering workspace.">
+    <title>AI Prompt Tutor — Pro Workspace</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Animated Gradient Background Mesh -->
+    <div class="mesh-bg">
+        <div class="mesh-blob mesh-blob-1"></div>
+        <div class="mesh-blob mesh-blob-2"></div>
+        <div class="mesh-blob mesh-blob-3"></div>
+        <div class="mesh-blob mesh-blob-4"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar slide-right" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">✨</div>
+                    <span class="logo-text">Prompt Tutor</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="workspace">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    Workspace
+                </button>
+                <button class="nav-item" data-view="history" id="navHistoryBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    History
+                    <span class="nav-badge" id="historyBadge" style="display:none">0</span>
+                </button>
+                <button class="nav-item" data-view="guide">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                    Guidebook
+                </button>
+            </nav>
+
+            <div class="sidebar-stats">
+                <div class="stat-box">
+                    <span class="stat-val" id="statAvg">0.0</span>
+                    <span class="stat-lbl">Avg Score</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-val" id="statTotal">0</span>
+                    <span class="stat-lbl">Prompts</span>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="btn btn-outline w-full" id="apiKeyToggle">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    <span>API Settings</span>
+                    <div class="status-indicator" id="apiStatusDot"></div>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content fade-up" id="mainContent">
+            
+            <!-- View: Workspace -->
+            <div class="view active" id="view-workspace">
+                <header class="page-header stagger-1">
+                    <h1>Your <span class="text-gradient">Prompt Coach</span></h1>
+                    <p>Write a prompt, get instant AI feedback, and learn to improve.</p>
+                </header>
+
+                <div class="workspace-grid stagger-2">
+                    
+                    <!-- Left Column: Input & Builder -->
+                    <div class="workspace-col editor-col">
+                        <div class="glass-panel builder-panel">
+                            
+                            <!-- Prompt Templates -->
+                            <div class="templates-bar" id="templatesBar">
+                                <button class="template-chip" data-prompt="Write a professional email to my manager requesting time off next Friday. Include a reason and offer to complete pending tasks beforehand.">
+                                    <span class="chip-emoji">📧</span> Email
+                                </button>
+                                <button class="template-chip" data-prompt="Write a Python function that takes a list of numbers and returns the top 3 largest values, handling edge cases like empty lists.">
+                                    <span class="chip-emoji">💻</span> Code
+                                </button>
+                                <button class="template-chip" data-prompt="Write a 300-word blog intro about the benefits of morning routines for productivity. Use a conversational tone and include a hook.">
+                                    <span class="chip-emoji">✍️</span> Blog Post
+                                </button>
+                                <button class="template-chip" data-prompt="Summarize the key differences between REST and GraphQL APIs in a comparison table with pros and cons for each.">
+                                    <span class="chip-emoji">📊</span> Summary
+                                </button>
+                                <button class="template-chip" data-prompt="Explain quantum computing to a 10-year-old using simple analogies and everyday examples. Keep it under 150 words.">
+                                    <span class="chip-emoji">🧠</span> Explain
+                                </button>
+                                <button class="template-chip" data-prompt="Create 5 unique Instagram caption ideas for a coffee shop that just launched a new seasonal drink menu.">
+                                    <span class="chip-emoji">📱</span> Social Media
+                                </button>
+                            </div>
+
+                            <!-- Hidden builder selects for backward compat -->
+                            <div class="builder-toolbar">
+                                <select id="roleSelect" class="builder-select"><option value=""></option></select>
+                                <select id="toneSelect" class="builder-select"><option value=""></option></select>
+                                <select id="formatSelect" class="builder-select"><option value=""></option></select>
+                            </div>
+
+                            <!-- Main Textarea -->
+                            <div class="textarea-wrapper">
+                                <textarea id="promptInput" placeholder="Type your prompt here, or click a template above to get started...&#10;&#10;Tip: Be specific about what you want, who the AI should act as, and what format you need." rows="6"></textarea>
+                            </div>
+
+                            <div class="panel-footer">
+                                <div class="footer-left">
+                                    <span class="char-count" id="charCount">0 chars · 0 words</span>
+                                    <button class="btn btn-icon btn-ghost" id="clearBtn" title="Clear All">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                                    </button>
+                                </div>
+                                <button class="btn btn-primary btn-glow" id="analyzeBtn" disabled>
+                                    <span class="btn-loader" id="btnLoader"></span>
+                                    <span id="analyzeBtnText">Analyze Prompt</span>
+                                    <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Error Message -->
+                        <div class="error-toast" id="errorSection" style="display: none;">
+                            <div class="error-toast-icon">⚠️</div>
+                            <div class="error-toast-content">
+                                <h4 id="errorTitle">Analysis Failed</h4>
+                                <p id="errorMessage">Please check your API key and try again.</p>
+                            </div>
+                            <button class="error-toast-close" onclick="document.getElementById('errorSection').style.display='none'">&times;</button>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Results -->
+                    <div class="workspace-col results-col">
+                        
+                        <!-- Empty State -->
+                        <div class="glass-panel results-empty" id="resultsEmpty">
+                            <div class="empty-icon">✨</div>
+                            <h3>Awaiting Input</h3>
+                            <p>Write a prompt and click Analyze to see your score, feedback, and an AI-optimized version.</p>
+                        </div>
+
+                        <!-- Results View -->
+                        <div class="results-container" id="resultsSection" style="display: none;">
+                            
+                            <!-- Score Hero -->
+                            <div class="glass-panel score-panel slide-up">
+                                <div class="score-ring-wrap">
+                                    <svg viewBox="0 0 140 140" class="score-svg">
+                                        <defs>
+                                            <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                <stop offset="0%" stop-color="#6366f1" />
+                                                <stop offset="100%" stop-color="#06b6d4" />
+                                            </linearGradient>
+                                        </defs>
+                                        <circle class="score-bg" cx="70" cy="70" r="60"/>
+                                        <circle class="score-progress" id="scoreRingFill" cx="70" cy="70" r="60"/>
+                                    </svg>
+                                    <div class="score-number-wrap">
+                                        <span class="score-val" id="scoreNumber">0</span>
+                                        <span class="score-max">/10</span>
+                                    </div>
+                                </div>
+                                <div class="score-info">
+                                    <h2 id="scoreVerdict" class="text-gradient">Analyzing...</h2>
+                                    <p id="scoreDesc">Evaluating prompt structure and clarity.</p>
+                                </div>
+                            </div>
+
+                            <!-- Feedback Grid -->
+                            <div class="feedback-grid slide-up delay-1">
+                                <div class="glass-panel feedback-box good">
+                                    <div class="fb-header">
+                                        <div class="fb-icon">✓</div>
+                                        <h3>Strengths</h3>
+                                    </div>
+                                    <ul id="strengthsList"></ul>
+                                </div>
+                                <div class="glass-panel feedback-box improve">
+                                    <div class="fb-header">
+                                        <div class="fb-icon">!</div>
+                                        <h3>To Improve</h3>
+                                    </div>
+                                    <ul id="weaknessesList"></ul>
+                                </div>
+                            </div>
+
+                            <!-- Optimized Version -->
+                            <div class="glass-panel optimized-panel slide-up delay-2">
+                                <div class="opt-header">
+                                    <h3>🚀 Optimized Prompt</h3>
+                                    <div class="opt-actions">
+                                        <button class="btn btn-sm btn-outline" id="useThisBtn" onclick="useOptimizedPrompt()">
+                                            ↩ Use This
+                                        </button>
+                                        <button class="btn btn-sm btn-outline" id="copyBtn" onclick="copyImprovedPrompt()">
+                                            <span id="copyBtnText">Copy</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="opt-code-wrap">
+                                    <div id="improvedPrompt" class="opt-text"></div>
+                                </div>
+                            </div>
+
+                            <!-- Tips -->
+                            <div class="glass-panel tips-panel slide-up delay-3">
+                                <h3>💡 Smart Tips</h3>
+                                <div class="tips-list" id="tipsList"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: History -->
+            <div class="view" id="view-history">
+                <header class="page-header">
+                    <h1>Prompt <span class="text-gradient">History</span></h1>
+                    <p>Review your past analyses and track your prompt engineering progress.</p>
+                </header>
+                <div class="glass-panel history-wrapper">
+                    <div class="history-actions">
+                        <button class="btn btn-sm btn-ghost" id="clearHistoryBtn">Clear History</button>
+                    </div>
+                    <div class="history-grid" id="historyList">
+                        <div class="empty-state">No history yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Guide -->
+            <div class="view" id="view-guide">
+                <header class="page-header">
+                    <h1>The <span class="text-gradient">Guidebook</span></h1>
+                    <p>Master these 6 principles to unlock the full potential of AI models.</p>
+                </header>
+                <div class="guide-grid">
+                    <div class="glass-panel guide-card zoom-in">
+                        <div class="guide-num">01</div>
+                        <h4>Be Specific</h4>
+                        <p>Detailed context prevents hallucinations. Instead of "Write about dogs," say "Write a 500-word blog post about the top 5 apartment dogs."</p>
+                    </div>
+                    <div class="glass-panel guide-card zoom-in delay-1">
+                        <div class="guide-num">02</div>
+                        <h4>Assign a Role</h4>
+                        <p>Persona adoption focuses the AI's knowledge base. "Act as a senior nutritionist with 10 years of experience" yields expert tone.</p>
+                    </div>
+                    <div class="glass-panel guide-card zoom-in delay-2">
+                        <div class="guide-num">03</div>
+                        <h4>Define Format</h4>
+                        <p>Never leave formatting to chance. Specify: "Provide output as a Markdown table," or "Return stringified JSON."</p>
+                    </div>
+                    <div class="glass-panel guide-card zoom-in delay-3">
+                        <div class="guide-num">04</div>
+                        <h4>Give Examples</h4>
+                        <p>Few-shot prompting shows the AI exactly what you want. Provide 1-2 input/output examples to set the pattern.</p>
+                    </div>
+                     <div class="glass-panel guide-card zoom-in delay-4">
+                        <div class="guide-num">05</div>
+                        <h4>Set Constraints</h4>
+                        <p>Define boundaries. "Under 200 words," "Use a 5th-grade reading level," or "Do not use robotic filler words."</p>
+                    </div>
+                     <div class="glass-panel guide-card zoom-in delay-5">
+                        <div class="guide-num">06</div>
+                        <h4>Iterate</h4>
+                        <p>The first prompt is rarely the best. Analyze the output, adjust your instructions, and try again. It's an iterative process.</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- API configuration Modal -->
+    <div class="modal-overlay" id="apiModal">
+        <div class="modal-backdrop" id="apiModalBackdrop"></div>
+        <div class="glass-panel modal-panel zoom-in">
+            <button class="modal-close" id="closeApiModal">&times;</button>
+            <div class="modal-content">
+                <div class="modal-icon">🔑</div>
+                <h2>API Configuration</h2>
+                <p>Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to begin. Your key is stored securely on your local server.</p>
+                
+                <div class="input-group">
+                    <input type="password" id="apiKeyInput" class="input-styled" placeholder="gsk_...">
+                </div>
+                
+                <button id="saveApiKeyBtn" class="btn btn-primary btn-glow w-full">Connect to Groq</button>
+                <div id="apiKeyStatus" class="status-msg"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+backend/prompts.db
+backend/prompts.json
+backend/settings.json
+backend/.env
+*.log
