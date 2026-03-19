@@ -404,6 +404,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap; /* Fix mobile wrap */
 }
 .rewrite-label {
     font-size: 0.75rem;
@@ -414,6 +415,7 @@ body {
 .rewrite-buttons {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap; /* Fix mobile wrap */
 }
 .rewrite-btn {
     padding: 4px 10px;
@@ -523,6 +525,26 @@ body {
     .editor-pane { max-height: none; }
     .editor-content { padding: 20px 16px; }
     .results-container { padding: 20px 16px; }
+    
+    /* Stack score card content on mobile */
+    .score-card-header { 
+        flex-direction: column; 
+        align-items: flex-start; 
+        gap: 16px; 
+        padding: 16px;
+    }
+    .score-massive-ring { width: 52px; height: 52px; }
+    .score-massive-val { font-size: 1.4rem; }
+    
+    /* Stack optimized prompt header actions */
+    .opt-card-header { 
+        flex-direction: column; 
+        align-items: flex-start; 
+        gap: 12px; 
+        padding: 16px;
+    }
+    .opt-actions { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 4px; }
+    
     .history-scroll-area { padding: 0 16px; }
     .history-header-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
 }
