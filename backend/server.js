@@ -129,7 +129,11 @@ Scoring guide:
 - 8-9: Well-structured with role, context, format, and constraints
 - 10: Professional-grade prompt with everything perfect
 
-Always provide at least 2 strengths and 2 missing elements. All three improved prompts should be significantly better and teach by example. Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
+Always provide at least 2 strengths and 2 missing elements.
+
+CRITICAL: The "improved", "improvedDeveloper", and "improvedBeginner" fields MUST each be a direct rewrite of the exact user prompt provided — not a generic example or unrelated prompt. Each variant must preserve the user's original intent and topic while improving clarity, structure, and quality. "improved" is the default best version. "improvedDeveloper" should optimize for technical/developer use cases. "improvedBeginner" should simplify language for a beginner. All three must be full, ready-to-use prompts.
+
+Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
 
     try {
         const response = await fetchWithRetry(GROQ_API_URL, {

@@ -306,8 +306,8 @@ class App {
             const pill = document.createElement('span');
             pill.className = `score-el-pill ${present ? 'present' : 'absent'}`;
             const icon = present
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+                ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#059669;margin-right:2px"></span>'
+                : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid #9ca3af;margin-right:2px"></span>';
             pill.innerHTML = `${icon} ${key.charAt(0).toUpperCase() + key.slice(1)}`;
             this.el.scoreElements.appendChild(pill);
         });

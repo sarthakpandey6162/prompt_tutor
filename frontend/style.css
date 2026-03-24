@@ -603,7 +603,7 @@ body {
 
 .score-ring-bg {
     fill: none;
-    stroke: var(--bg-page);
+    stroke: #e5e7eb;
     stroke-width: 6;
 }
 
