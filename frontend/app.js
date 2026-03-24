@@ -1,536 +1,557 @@
 /**
- * Prompt Tutor — Frontend Application Logic
- * Refactored for modularity, clean architecture, and modern UX.
+ * Prompt Tutor — Frontend Application
+ * Premium redesign with live detection, improve-for tabs, toast system
  */
 
 class App {
     constructor() {
-        this.API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
-        
-        // DOM Elements
-        this.elements = {
-            // Navigation
+        this.API = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
+
+        // Cache DOM
+        this.el = {
             navItems: document.querySelectorAll('.nav-item[data-view]'),
             views: document.querySelectorAll('.view'),
-            navHistoryBtn: document.getElementById('navHistoryBtn'),
             historyBadge: document.getElementById('historyBadge'),
-            
-            // Workspace Header/Auth
-            apiKeyToggle: document.getElementById('apiKeyToggle'),
-            apiStatusDot: document.getElementById('apiStatusDot'),
-            
-            // Input Area
+
             promptInput: document.getElementById('promptInput'),
-            charCount: document.getElementById('charCount'),
+            inputContainer: document.getElementById('inputContainer'),
             clearBtn: document.getElementById('clearBtn'),
             analyzeBtn: document.getElementById('analyzeBtn'),
+            submitText: document.getElementById('submitText'),
             btnLoader: document.getElementById('btnLoader'),
-            submitIcon: document.querySelector('.submit-icon'),
-            
-            // Modal & Banner
+            errorBanner: document.getElementById('errorBanner'),
+            errorMessage: document.getElementById('errorMessage'),
+            errorClose: document.getElementById('errorClose'),
+
+            // Live detection
+            badges: {
+                role: document.getElementById('badge-role'),
+                format: document.getElementById('badge-format'),
+                constraints: document.getElementById('badge-constraints'),
+                examples: document.getElementById('badge-examples'),
+                context: document.getElementById('badge-context'),
+            },
+            toneBadge: document.getElementById('toneBadge'),
+            statWords: document.getElementById('statWords'),
+            statChars: document.getElementById('statChars'),
+            statTokens: document.getElementById('statTokens'),
+
+            // API modal
+            apiKeyToggle: document.getElementById('apiKeyToggle'),
             apiModal: document.getElementById('apiModal'),
             closeApiModal: document.getElementById('closeApiModal'),
+            apiModalBackdrop: document.getElementById('apiModalBackdrop'),
             saveApiKeyBtn: document.getElementById('saveApiKeyBtn'),
             apiKeyInput: document.getElementById('apiKeyInput'),
             apiKeyStatus: document.getElementById('apiKeyStatus'),
-            errorBanner: document.getElementById('errorBanner'),
-            errorMessage: document.getElementById('errorMessage'),
-            
-            // Results & Welcome
+            apiStatusDot: document.getElementById('apiStatusDot'),
+
+            // Results
             welcomeState: document.getElementById('welcomeState'),
             resultsSection: document.getElementById('resultsSection'),
-            userPromptText: document.getElementById('userPromptText'),
-            scoreVerdict: document.getElementById('scoreVerdict'),
+            scoreLabel: document.getElementById('scoreLabel'),
+            scoreTone: document.getElementById('scoreTone'),
             scoreBadge: document.getElementById('scoreBadge'),
-            scoreDesc: document.getElementById('scoreDesc'),
-            criteriaGrid: document.getElementById('criteriaGrid'),
+            scoreRingFill: document.getElementById('scoreRingFill'),
+            scoreElements: document.getElementById('scoreElements'),
             strengthsList: document.getElementById('strengthsList'),
-            weaknessesList: document.getElementById('weaknessesList'),
+            missingList: document.getElementById('missingList'),
+            tipsList: document.getElementById('tipsList'),
             improvedPrompt: document.getElementById('improvedPrompt'),
-            copyBtn: document.getElementById('copyBtn'),
+            useImprovedBtn: document.getElementById('useImprovedBtn'),
+            copyImprovedBtn: document.getElementById('copyImprovedBtn'),
             copyBtnText: document.getElementById('copyBtnText'),
-            workspaceScroll: document.getElementById('workspaceScroll'),
-            
-            // History View
+            improveTabs: document.querySelectorAll('.improve-tab'),
+
+            // History
             historyList: document.getElementById('historyList'),
+            historyEmpty: document.getElementById('historyEmpty'),
             clearHistoryBtn: document.getElementById('clearHistoryBtn'),
             filterButtons: document.querySelectorAll('.filter-btn'),
-            rewriteButtons: document.querySelectorAll('.rewrite-btn'),
+
+            // Toast
+            toastContainer: document.getElementById('toastContainer'),
         };
 
-        this.currentMode = 'general';
+        this.currentAnalysis = null;
+        this.currentVariant = 'default';
         this.currentFilter = 'all';
-        this.allHistoryItems = []; // Cache for filtering
+        this.allHistory = [];
 
         this.init();
     }
 
     init() {
         this.bindEvents();
-        this.checkApiKeyStatus();
-        this.setupTemplates();
+        this.checkApiKey();
         this.loadHistoryBadge();
-        
-        // Expose global functions for inline handlers
-        window.useOptimizedPrompt = () => this.useOptimizedPrompt();
-        window.copyImprovedPrompt = () => this.copyImprovedPrompt();
-        window.deleteHistoryItem = (id) => this.deleteHistoryItem(id);
-        window.viewHistoryItem = (id) => this.viewHistoryItem(id);
+        this.loadDraft();
+        this.setupMobile();
     }
 
     bindEvents() {
-        // Navigation
-        this.elements.navItems.forEach(item => {
-            item.addEventListener('click', () => this.switchView(item));
+        // Nav
+        this.el.navItems.forEach(n => n.addEventListener('click', () => this.switchView(n)));
+
+        // Input
+        this.el.promptInput.addEventListener('input', () => {
+            this.updateLiveDetection();
+            this.updateStats();
+            this.el.analyzeBtn.disabled = !this.el.promptInput.value.trim();
+            this.saveDraft();
         });
 
-        // Input Handle
-        this.elements.promptInput.addEventListener('input', () => this.handleInput());
-        this.elements.promptInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+        this.el.promptInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
-                if (!this.elements.analyzeBtn.disabled) this.analyzePrompt();
+                if (!this.el.analyzeBtn.disabled) this.analyze();
             }
         });
 
-        this.elements.clearBtn.addEventListener('click', () => this.clearWorkspace());
-        this.elements.analyzeBtn.addEventListener('click', () => this.analyzePrompt());
+        // Actions
+        this.el.clearBtn.addEventListener('click', () => this.clearWorkspace());
+        this.el.analyzeBtn.addEventListener('click', () => this.analyze());
+        this.el.errorClose.addEventListener('click', () => this.el.errorBanner.style.display = 'none');
+        this.el.useImprovedBtn.addEventListener('click', () => this.useImproved());
+        this.el.copyImprovedBtn.addEventListener('click', () => this.copyImproved());
 
-        // API Modal
-        this.elements.apiKeyToggle.addEventListener('click', () => this.toggleModal(true));
-        this.elements.closeApiModal.addEventListener('click', () => this.toggleModal(false));
-        document.getElementById('apiModalBackdrop').addEventListener('click', () => this.toggleModal(false));
-        this.elements.saveApiKeyBtn.addEventListener('click', () => this.saveApiKey());
-        
-        // History Filters
-        this.elements.filterButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.handleFilter(btn));
+        // Templates
+        document.querySelectorAll('.template-card').forEach(c => {
+            c.addEventListener('click', () => {
+                this.el.promptInput.value = c.dataset.prompt;
+                this.updateLiveDetection();
+                this.updateStats();
+                this.el.analyzeBtn.disabled = false;
+                this.el.promptInput.focus();
+                this.saveDraft();
+            });
         });
 
-        // Rewrite Modes
-        this.elements.rewriteButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.handleRewrite(btn));
+        // Improve-for tabs
+        this.el.improveTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.el.improveTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this.currentVariant = tab.dataset.variant;
+                this.showVariant();
+            });
         });
 
-        this.elements.clearHistoryBtn.addEventListener('click', () => this.clearHistory());
+        // Modal
+        this.el.apiKeyToggle.addEventListener('click', () => this.toggleModal(true));
+        this.el.closeApiModal.addEventListener('click', () => this.toggleModal(false));
+        this.el.apiModalBackdrop.addEventListener('click', () => this.toggleModal(false));
+        this.el.saveApiKeyBtn.addEventListener('click', () => this.saveApiKey());
+
+        // History
+        this.el.clearHistoryBtn.addEventListener('click', () => this.clearHistory());
+        this.el.filterButtons.forEach(b => b.addEventListener('click', () => this.setFilter(b)));
     }
 
-    /* --- Navigation --- */
-    switchView(navEl) {
-        const target = navEl.getAttribute('data-view');
-        
-        this.elements.navItems.forEach(n => n.classList.remove('active'));
-        navEl.classList.add('active');
-        
-        this.elements.views.forEach(v => {
+    setupMobile() {
+        const toggle = document.getElementById('menuToggleBtn');
+        const sidebar = document.getElementById('sidebar');
+        const close = document.getElementById('closeSidebarBtn');
+        if (toggle) toggle.addEventListener('click', () => sidebar.classList.add('open'));
+        if (close) close.addEventListener('click', () => sidebar.classList.remove('open'));
+    }
+
+    /* ===== Navigation ===== */
+    switchView(nav) {
+        const target = nav.dataset.view;
+        this.el.navItems.forEach(n => n.classList.remove('active'));
+        nav.classList.add('active');
+        this.el.views.forEach(v => {
             v.classList.remove('active');
             if (v.id === `view-${target}`) v.classList.add('active');
         });
-
         if (target === 'history') this.loadHistory();
+        // Close mobile sidebar
+        document.getElementById('sidebar').classList.remove('open');
     }
 
-    /* --- API Key Management --- */
+    /* ===== API Key ===== */
     toggleModal(show) {
-        if (show) this.elements.apiModal.classList.add('open');
-        else this.elements.apiModal.classList.remove('open');
+        this.el.apiModal.classList.toggle('open', show);
     }
 
-    async checkApiKeyStatus() {
+    async checkApiKey() {
         try {
-            const res = await fetch(`${this.API_BASE}/settings/apikey/status`);
-            const data = await res.json();
-            if (data.configured) {
-                this.elements.apiStatusDot.classList.add('connected');
-            } else {
-                this.elements.apiStatusDot.classList.remove('connected');
-                // Auto show after 1s if unconfigured
-                setTimeout(() => this.toggleModal(true), 1000);
-            }
-        } catch (e) {
-            console.error('Failed to check API status:', e);
-        }
+            const r = await fetch(`${this.API}/settings/apikey/status`);
+            const d = await r.json();
+            this.el.apiStatusDot.classList.toggle('connected', d.configured);
+            if (!d.configured) setTimeout(() => this.toggleModal(true), 1200);
+        } catch (e) { console.error(e); }
     }
 
     async saveApiKey() {
-        const key = this.elements.apiKeyInput.value.trim();
+        const key = this.el.apiKeyInput.value.trim();
         if (!key) return;
-
-        this.elements.saveApiKeyBtn.textContent = 'Saving...';
-        
+        this.el.saveApiKeyBtn.textContent = 'Saving...';
         try {
-            const res = await fetch(`${this.API_BASE}/settings/apikey`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const r = await fetch(`${this.API}/settings/apikey`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ apiKey: key })
             });
-
-            if (res.ok) {
-                this.elements.apiKeyStatus.textContent = 'Key securely saved to server.';
-                this.elements.apiKeyStatus.style.color = 'var(--success)';
-                this.elements.apiKeyInput.value = '';
-                this.checkApiKeyStatus();
-                setTimeout(() => {
-                    this.toggleModal(false);
-                    this.elements.apiKeyStatus.textContent = '';
-                }, 1000);
-            } else {
-                throw new Error('Failed to save API key');
-            }
+            if (r.ok) {
+                this.el.apiKeyStatus.textContent = '✓ Key saved securely.';
+                this.el.apiKeyStatus.style.color = 'var(--success)';
+                this.el.apiKeyInput.value = '';
+                this.checkApiKey();
+                this.toast('API key saved', 'success');
+                setTimeout(() => { this.toggleModal(false); this.el.apiKeyStatus.textContent = ''; }, 1000);
+            } else throw new Error('Failed');
         } catch (e) {
-            this.elements.apiKeyStatus.textContent = e.message;
-            this.elements.apiKeyStatus.style.color = 'var(--danger)';
+            this.el.apiKeyStatus.textContent = e.message;
+            this.el.apiKeyStatus.style.color = 'var(--danger)';
         } finally {
-            this.elements.saveApiKeyBtn.textContent = 'Save Configuration';
+            this.el.saveApiKeyBtn.textContent = 'Save Configuration';
         }
     }
 
-    /* --- Workspace Actions --- */
-    setupTemplates() {
-        document.querySelectorAll('.template-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const prompt = card.getAttribute('data-prompt');
-                if (prompt) {
-                    this.elements.promptInput.value = prompt;
-                    this.handleInput();
-                    this.elements.promptInput.focus();
+    /* ===== Live Detection ===== */
+    updateLiveDetection() {
+        const t = this.el.promptInput.value.toLowerCase();
+
+        const checks = {
+            role: /act as|you are a|persona|pretend|role|as a|expert|assistant|developer|scientist|writer|teacher|coach/i,
+            format: /json|markdown|table|csv|format|output|structure|bullet|list|code block|email|report|essay|html|xml/i,
+            constraints: /limit|max|must|exactly|no more|at least|words|under|avoid|don't|do not|never|only|restrict|constraint/i,
+            examples: /example|sample|for instance|input:|output:|e\.g\.|demonstrate|like this|such as/i,
+            context: /context|background|situation|scenario|given that|assuming|based on|the goal|objective|purpose|audience/i,
+        };
+
+        Object.entries(checks).forEach(([key, regex]) => {
+            const badge = this.el.badges[key];
+            if (regex.test(t)) {
+                if (!badge.classList.contains('detected')) {
+                    badge.classList.remove('missing');
+                    badge.classList.add('detected');
                 }
-            });
+            } else {
+                badge.classList.remove('detected');
+                badge.classList.add('missing');
+            }
         });
+
+        // Tone
+        let tone = 'Neutral';
+        if (/please|kindly|would you|appreciate|thank you/i.test(t)) tone = 'Formal';
+        else if (/must|exactly|strict|constraint|no more than|required/i.test(t)) tone = 'Directive';
+        else if (/algorithm|function|api|database|deploy|syntax|variable/i.test(t)) tone = 'Technical';
+        else if (/imagine|creative|unique|innovative|story|narrative/i.test(t)) tone = 'Creative';
+        else if (/hey|hi|yo|bro|cool|awesome|lol/i.test(t)) tone = 'Casual';
+        else if (/analyze|compare|evaluate|assess|research|study/i.test(t)) tone = 'Analytical';
+        this.el.toneBadge.textContent = tone;
     }
 
-    handleInput() {
-        // Auto-resize textarea
-        const el = this.elements.promptInput;
-        el.style.height = 'auto';
-        el.style.height = (el.scrollHeight < 200 ? el.scrollHeight : 200) + 'px';
-
-        const text = el.value.trim();
-        this.elements.charCount.textContent = `${text.length} chars`;
-        this.elements.analyzeBtn.disabled = text.length === 0;
-
-        // --- Real-Time Coaching Logic ---
-        this.evaluateLiveCoaching(text.toLowerCase());
+    updateStats() {
+        const t = this.el.promptInput.value;
+        const words = t.trim() ? t.trim().split(/\s+/).length : 0;
+        const chars = t.length;
+        const tokens = Math.ceil(chars / 4);
+        this.el.statWords.textContent = words;
+        this.el.statChars.textContent = chars;
+        this.el.statTokens.textContent = tokens;
     }
 
-    evaluateLiveCoaching(text) {
-        // Quick regex checks for specific criteria patterns
-        
-        // Role: "act as", "you are a", "persona:"
-        const hasRole = /act as|you are a|persona:|pretend to be|role as a/i.test(text);
-        this.toggleCoachChip('coach-role', hasRole);
+    /* ===== Analyze ===== */
+    async analyze() {
+        const prompt = this.el.promptInput.value.trim();
+        if (!prompt) return;
+        this.setLoading(true);
 
-        // Format: "json", "markdown", "table", "format:", "output as"
-        const hasFormat = /json|markdown|table|csv|format:|output as|structure:|bullet points/i.test(text);
-        this.toggleCoachChip('coach-format', hasFormat);
+        try {
+            const r = await fetch(`${this.API}/analyze`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'Analysis failed.');
 
-        // Constraints: "under", "max", "words", "limit", "must be", "exactly"
-        const hasConstraints = /under \d+|max \d+|limit|must be|exactly \d+|no more than|at least \d+/i.test(text);
-        this.toggleCoachChip('coach-constraints', hasConstraints);
-
-        // Examples: "example:", "for instance", "input: ... output:"
-        const hasExamples = /example:|for instance|e\.g\.|input:.+output:/i.test(text);
-        this.toggleCoachChip('coach-examples', hasExamples);
+            this.currentAnalysis = d.analysis;
+            this.currentVariant = 'default';
+            this.renderResults(d.analysis);
+            this.loadHistoryBadge();
+            this.toast('Analysis complete');
+        } catch (e) {
+            this.showError(e.message);
+        } finally {
+            this.setLoading(false);
+        }
     }
 
-    toggleCoachChip(id, isDetected) {
-        const chip = document.getElementById(id);
-        if (!chip) return;
+    renderResults(a) {
+        this.el.welcomeState.style.display = 'none';
+        this.el.errorBanner.style.display = 'none';
+        this.el.resultsSection.style.display = 'flex';
 
-        if (isDetected) {
-            chip.classList.remove('missing');
-            chip.classList.add('detected');
-        } else {
-            chip.classList.remove('detected');
-            chip.classList.add('missing');
+        // Score
+        const score = a.score || 0;
+        this.el.scoreLabel.textContent = a.label || a.verdict || 'Analyzed';
+        this.el.scoreTone.textContent = a.tone || '—';
+        this.el.scoreBadge.innerHTML = `${score}<span class="score-max">/10</span>`;
+
+        // Ring
+        const circ = 263.89; // 2 * π * 42
+        const offset = circ - (score / 10) * circ;
+        this.el.scoreRingFill.style.strokeDashoffset = offset;
+        this.el.scoreRingFill.style.stroke = this.scoreColor(score);
+
+        // Element pills
+        this.el.scoreElements.innerHTML = '';
+        const elements = a.elements || {};
+        ['role', 'format', 'constraints', 'examples', 'context'].forEach(key => {
+            const present = elements[key];
+            const pill = document.createElement('span');
+            pill.className = `score-el-pill ${present ? 'present' : 'absent'}`;
+            const icon = present
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+            pill.innerHTML = `${icon} ${key.charAt(0).toUpperCase() + key.slice(1)}`;
+            this.el.scoreElements.appendChild(pill);
+        });
+
+        // Strengths
+        this.el.strengthsList.innerHTML = (a.strengths || []).map(s => `<li>${this.esc(s)}</li>`).join('') || '<li>None noted.</li>';
+
+        // Missing
+        this.el.missingList.innerHTML = (a.missing || a.weaknesses || []).map(s => `<li>${this.esc(s)}</li>`).join('') || '<li>Looks solid!</li>';
+
+        // Tips
+        this.el.tipsList.innerHTML = '';
+        (a.tips || []).forEach(tip => {
+            const div = document.createElement('div');
+            div.className = 'tip-card';
+            if (typeof tip === 'string') {
+                div.innerHTML = `<div class="tip-desc">${this.esc(tip)}</div>`;
+            } else {
+                div.innerHTML = `
+                    <div class="tip-title">${this.esc(tip.title || '')}</div>
+                    <div class="tip-desc">${this.esc(tip.description || '')}</div>
+                `;
+            }
+            this.el.tipsList.appendChild(div);
+        });
+
+        // Improved prompt — reset tabs
+        this.el.improveTabs.forEach(t => t.classList.remove('active'));
+        this.el.improveTabs[0].classList.add('active');
+        this.currentVariant = 'default';
+        this.showVariant();
+
+        // Scroll to top
+        setTimeout(() => {
+            document.getElementById('analysisPane')?.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+    }
+
+    showVariant() {
+        if (!this.currentAnalysis) return;
+        const a = this.currentAnalysis;
+        let text = '';
+        if (this.currentVariant === 'developer') text = a.improvedDeveloper || a.improved_prompt || a.improved || '';
+        else if (this.currentVariant === 'beginner') text = a.improvedBeginner || a.improved_prompt || a.improved || '';
+        else text = a.improved || a.improved_prompt || '';
+        this.el.improvedPrompt.textContent = text;
+    }
+
+    /* ===== Actions ===== */
+    useImproved() {
+        const text = this.el.improvedPrompt.textContent;
+        if (text) {
+            this.el.promptInput.value = text;
+            this.updateLiveDetection();
+            this.updateStats();
+            this.el.analyzeBtn.disabled = false;
+            this.el.promptInput.focus();
+            this.saveDraft();
+            this.toast('Prompt loaded into editor', 'success');
+        }
+    }
+
+    copyImproved() {
+        const text = this.el.improvedPrompt.textContent;
+        if (text) {
+            navigator.clipboard.writeText(text).then(() => {
+                this.el.copyBtnText.textContent = 'Copied!';
+                this.toast('Copied to clipboard', 'success');
+                setTimeout(() => { this.el.copyBtnText.textContent = 'Copy'; }, 2000);
+            });
         }
     }
 
     clearWorkspace() {
-        this.elements.promptInput.value = '';
-        this.handleInput();
-        this.elements.promptInput.focus();
-        
-        this.elements.resultsSection.style.display = 'none';
-        this.elements.welcomeState.style.display = 'block';
-        this.elements.errorBanner.style.display = 'none';
+        this.el.promptInput.value = '';
+        this.el.analyzeBtn.disabled = true;
+        this.el.resultsSection.style.display = 'none';
+        this.el.welcomeState.style.display = 'flex';
+        this.el.errorBanner.style.display = 'none';
+        this.currentAnalysis = null;
+        this.updateLiveDetection();
+        this.updateStats();
+        this.el.promptInput.focus();
+        this.saveDraft();
     }
 
-    async analyzePrompt(customMode = null) {
-        const prompt = this.elements.promptInput.value.trim();
-        if (!prompt) return;
-
-        const mode = customMode || this.currentMode;
-        this.setLoadingState(true);
-
-        try {
-            const res = await fetch(`${this.API_BASE}/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, mode })
-            });
-
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.error || 'Analysis failed. Make sure your API key is correct and valid.');
-            }
-
-            this.renderAnalysis(prompt, data.analysis);
-            this.loadHistoryBadge();
-
-        } catch (e) {
-            this.showError(e.message);
-        } finally {
-            this.setLoadingState(false);
-        }
-    }
-
-    setLoadingState(isLoading) {
-        this.elements.analyzeBtn.disabled = isLoading;
-        this.elements.promptInput.disabled = isLoading;
-        if (isLoading) {
-            this.elements.submitIcon.style.display = 'none';
-            this.elements.btnLoader.style.display = 'block';
-            this.elements.errorBanner.style.display = 'none';
-        } else {
-            this.elements.submitIcon.style.display = 'block';
-            this.elements.btnLoader.style.display = 'none';
-        }
+    /* ===== UI Helpers ===== */
+    setLoading(on) {
+        this.el.analyzeBtn.disabled = on;
+        this.el.promptInput.disabled = on;
+        this.el.submitText.style.display = on ? 'none' : 'inline';
+        this.el.btnLoader.style.display = on ? 'inline-block' : 'none';
+        if (on) this.el.errorBanner.style.display = 'none';
     }
 
     showError(msg) {
-        this.elements.errorMessage.textContent = msg;
-        this.elements.errorBanner.style.display = 'flex';
-        this.elements.welcomeState.style.display = 'none';
-        this.elements.resultsSection.style.display = 'none';
+        this.el.errorMessage.textContent = msg;
+        this.el.errorBanner.style.display = 'flex';
+        this.toast(msg, 'error');
     }
 
-    renderAnalysis(userPrompt, data) {
-        if (!data) return;
-
-        this.elements.welcomeState.style.display = 'none';
-        this.elements.errorBanner.style.display = 'none';
-        this.elements.resultsSection.style.display = 'flex';
-
-        // Render Score Header
-        const score = data.score || 0;
-        this.elements.scoreVerdict.textContent = data.verdict || 'Evaluation Complete';
-        this.elements.scoreDesc.textContent = data.description || '';
-        
-        // Massive Score UI Update
-        this.elements.scoreBadge.innerHTML = `${score}<span class="score-massive-max">/10</span>`;
-        
-        let ringBg = 'var(--danger)';
-        if (score >= 5) ringBg = 'var(--warning)';
-        if (score >= 7) ringBg = 'var(--success)';
-        if (score >= 9) ringBg = '#000';
-        document.querySelector('.score-massive-ring').style.background = ringBg;
-
-        // Render Quality Breakdown (Progress Bars)
-        if (data.evaluation) {
-            this.elements.criteriaGrid.innerHTML = '';
-            
-            const criteriaMaps = [
-                { key: 'context', name: 'Context' },
-                { key: 'role', name: 'Role Assignment' },
-                { key: 'format', name: 'Output Format' },
-                { key: 'examples', name: 'Few-Shot Examples' },
-                { key: 'constraints', name: 'Constraints Set' }
-            ];
-
-            criteriaMaps.forEach(c => {
-                const evalData = data.evaluation[c.key];
-                if (!evalData) return;
-
-                const subScore = evalData.score || 0;
-                const note = evalData.note || 'No notes provided.';
-                const barWidth = `${subScore * 10}%`;
-                
-                let barColor = 'var(--danger)';
-                if (subScore >= 5) barColor = 'var(--warning)';
-                if (subScore >= 7) barColor = 'var(--success)';
-                if (subScore >= 9) barColor = '#000';
-
-                const div = document.createElement('div');
-                div.className = 'crit-row';
-                div.innerHTML = `
-                    <div class="crit-info">
-                        <span>${c.name}</span>
-                        <span class="crit-info-score">${subScore}/10</span>
-                    </div>
-                    <div class="crit-bar-bg">
-                        <div class="crit-bar-fill" style="width: ${barWidth}; background: ${barColor}"></div>
-                    </div>
-                    <div class="crit-note">${this.escapeHTML(note)}</div>
-                `;
-                this.elements.criteriaGrid.appendChild(div);
-            });
-        }
-
-        // Lists
-        const sf = x => `<li>${this.escapeHTML(x)}</li>`;
-        this.elements.strengthsList.innerHTML = data.strengths?.length > 0 ? data.strengths.map(sf).join('') : '<li>None notable.</li>';
-        this.elements.weaknessesList.innerHTML = data.weaknesses?.length > 0 ? data.weaknesses.map(sf).join('') : '<li>Looks completely solid!</li>';
-
-        // Optimized Prompt
-        this.elements.improvedPrompt.textContent = data.improved_prompt || 'No improved prompt generated.';
-
-        // Scroll down
-        setTimeout(() => {
-            const rightPane = document.getElementById('analysisPane');
-            if(rightPane) rightPane.scrollTo({ top: rightPane.scrollHeight, behavior: 'smooth' });
-        }, 100);
+    scoreColor(s) {
+        if (s >= 7) return '#059669';
+        if (s >= 4) return '#d97706';
+        return '#dc2626';
     }
 
-    handleRewrite(btn) {
-        const mode = btn.getAttribute('data-mode');
-        this.elements.rewriteButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentMode = mode;
-        this.analyzePrompt(mode);
+    esc(s) {
+        if (!s) return '';
+        return s.replace(/[&<>'"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[c] || c));
     }
 
-    handleFilter(btn) {
-        const filter = btn.getAttribute('data-filter');
-        this.elements.filterButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentFilter = filter;
-        this.renderFilteredHistory();
+    /* ===== Toast ===== */
+    toast(msg, type = '') {
+        const el = document.createElement('div');
+        el.className = `toast ${type ? `toast-${type}` : ''}`;
+        el.textContent = msg;
+        this.el.toastContainer.appendChild(el);
+        setTimeout(() => el.remove(), 3200);
     }
 
-    useOptimizedPrompt() {
-        const text = this.elements.improvedPrompt.textContent;
-        if (text) {
-            this.elements.promptInput.value = text;
-            this.handleInput();
-            this.elements.promptInput.focus();
-        }
-    }
-
-    copyImprovedPrompt() {
-        const text = this.elements.improvedPrompt.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            this.elements.copyBtnText.textContent = 'Copied!';
-            setTimeout(() => {
-                this.elements.copyBtnText.textContent = 'Copy';
-            }, 2000);
-        });
-    }
-
-    escapeHTML(str) {
-        return str.replace(/[&<>'"]/g, tag => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-        }[tag] || tag));
-    }
-
-    /* --- History Management --- */
+    /* ===== History ===== */
     async loadHistoryBadge() {
         try {
-            const res = await fetch(`${this.API_BASE}/history`);
-            const data = await res.json();
-            if (data.length > 0) {
-                this.elements.historyBadge.textContent = data.length;
-                this.elements.historyBadge.style.display = 'inline-block';
-            } else {
-                this.elements.historyBadge.style.display = 'none';
-            }
+            const r = await fetch(`${this.API}/history`);
+            const d = await r.json();
+            this.el.historyBadge.textContent = d.length;
+            this.el.historyBadge.style.display = d.length > 0 ? 'inline-block' : 'none';
         } catch (e) {}
     }
 
     async loadHistory() {
-        this.elements.historyList.innerHTML = '<div class="panel-empty-state">Loading history...</div>';
-        
         try {
-            const res = await fetch(`${this.API_BASE}/history`);
-            this.allHistoryItems = await res.json();
-            this.renderFilteredHistory();
+            const r = await fetch(`${this.API}/history`);
+            this.allHistory = await r.json();
+            this.renderHistory();
         } catch (e) {
-            this.elements.historyList.innerHTML = '<div class="panel-empty-state" style="color:var(--danger)">Failed to load history.</div>';
+            this.el.historyList.innerHTML = '';
+            this.el.historyEmpty.style.display = 'flex';
         }
     }
 
-    renderFilteredHistory() {
-        let items = [...this.allHistoryItems];
+    setFilter(btn) {
+        this.el.filterButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentFilter = btn.dataset.filter;
+        this.renderHistory();
+    }
 
-        if (this.currentFilter === 'high') {
-            items = items.filter(i => i.score >= 8);
-        } else if (this.currentFilter === 'needs-improvement') {
-            items = items.filter(i => i.score < 6);
-        }
+    renderHistory() {
+        let items = [...this.allHistory];
+        if (this.currentFilter === 'high') items = items.filter(i => i.score >= 7);
+        else if (this.currentFilter === 'mid') items = items.filter(i => i.score >= 4 && i.score < 7);
+        else if (this.currentFilter === 'low') items = items.filter(i => i.score < 4);
 
         if (items.length === 0) {
-            this.elements.historyList.innerHTML = `<div class="panel-empty-state">No ${this.currentFilter === 'all' ? '' : this.currentFilter.replace('-', ' ')} prompts found.</div>`;
+            this.el.historyList.innerHTML = '';
+            this.el.historyEmpty.style.display = 'flex';
             return;
         }
 
-        this.elements.historyList.innerHTML = '';
-        
-        items.forEach(item => {
-                const dateRaw = new Date(item.created_at);
-                const date = !isNaN(dateRaw) ? dateRaw.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-                
-                let scoreBg = 'var(--danger)';
-                if (item.score >= 5) scoreBg = 'var(--warning)';
-                if (item.score >= 7) scoreBg = 'var(--success)';
-                if (item.score >= 9) scoreBg = '#000';
+        this.el.historyEmpty.style.display = 'none';
+        this.el.historyList.innerHTML = '';
 
-                const div = document.createElement('div');
-                div.className = 'history-card';
-                div.onclick = () => this.viewHistoryItem(item.id);
-                
-                div.innerHTML = `
-                    <div class="hist-card-head">
-                        <div class="hist-card-score" style="background:${scoreBg}">${item.score}/10</div>
-                        <div class="hist-card-date">${date}</div>
-                    </div>
-                    <div class="hist-card-text">${this.escapeHTML(item.prompt_text)}</div>
-                    <div class="hist-card-verdict">
-                        <span>${this.escapeHTML(item.verdict || 'Analyzed')}</span>
-                        <button class="delete-btn" onclick="event.stopPropagation(); deleteHistoryItem('${item.id}')" aria-label="Delete History Item">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                    </div>
-                `;
-                this.elements.historyList.appendChild(div);
-            });
+        items.forEach(item => {
+            const date = new Date(item.created_at);
+            const dateStr = !isNaN(date) ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+            const bg = this.scoreColor(item.score);
+
+            const div = document.createElement('div');
+            div.className = 'history-card';
+            div.onclick = () => this.viewHistoryItem(item.id);
+            div.innerHTML = `
+                <div class="hist-card-head">
+                    <span class="hist-score" style="background:${bg}">${item.score}/10</span>
+                    <span class="hist-date">${dateStr}</span>
+                </div>
+                <div class="hist-text">${this.esc(item.prompt_text)}</div>
+                <div class="hist-footer">
+                    <span class="hist-label">${this.esc(item.label || item.verdict || '')}</span>
+                    <button class="delete-btn" onclick="event.stopPropagation(); window.app.deleteHistoryItem(${item.id})" aria-label="Delete">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
+            `;
+            this.el.historyList.appendChild(div);
+        });
     }
 
     async deleteHistoryItem(id) {
-        try {
-            await fetch(`${this.API_BASE}/history/${id}`, { method: 'DELETE' });
-            this.loadHistory();
-            this.loadHistoryBadge();
-        } catch(e) {}
+        await fetch(`${this.API}/history/${id}`, { method: 'DELETE' });
+        this.loadHistory();
+        this.loadHistoryBadge();
+        this.toast('Prompt deleted');
     }
 
     async clearHistory() {
-        if(confirm('Are you sure you want to clear your entire history?')) {
-            try {
-                await fetch(`${this.API_BASE}/history`, { method: 'DELETE' });
-                this.loadHistory();
-                this.loadHistoryBadge();
-            } catch(e) {}
-        }
+        if (!confirm('Clear all history?')) return;
+        await fetch(`${this.API}/history`, { method: 'DELETE' });
+        this.loadHistory();
+        this.loadHistoryBadge();
+        this.toast('History cleared');
     }
 
     async viewHistoryItem(id) {
         try {
-            const res = await fetch(`${this.API_BASE}/history/${id}`);
-            if(res.ok) {
-                const data = await res.json();
-                
-                // Switch back to Workspace view
-                document.querySelector('.nav-item[data-view="workspace"]').click();
-                
-                // Populate data
-                this.renderAnalysis(data.prompt_text, data.analysis);
-            }
-        } catch(e) {}
+            const r = await fetch(`${this.API}/history/${id}`);
+            if (!r.ok) return;
+            const data = await r.json();
+            document.querySelector('.nav-item[data-view="workspace"]').click();
+            this.el.promptInput.value = data.prompt_text;
+            this.el.analyzeBtn.disabled = false;
+            this.updateLiveDetection();
+            this.updateStats();
+
+            // Reconstruct analysis object
+            const analysis = {
+                score: data.score,
+                label: data.label || data.verdict,
+                tone: data.tone || '—',
+                elements: data.elements || {},
+                strengths: data.strengths || [],
+                missing: data.missing || data.weaknesses || [],
+                tips: data.tips || [],
+                improved: data.improved || data.improved_prompt || '',
+                improvedDeveloper: data.improvedDeveloper || '',
+                improvedBeginner: data.improvedBeginner || '',
+            };
+            this.currentAnalysis = analysis;
+            this.renderResults(analysis);
+        } catch (e) {}
+    }
+
+    /* ===== Draft ===== */
+    saveDraft() { localStorage.setItem('prompt_draft', this.el.promptInput.value); }
+    loadDraft() {
+        const d = localStorage.getItem('prompt_draft');
+        if (d) {
+            this.el.promptInput.value = d;
+            this.el.analyzeBtn.disabled = !d.trim();
+            this.updateLiveDetection();
+            this.updateStats();
+        }
     }
 }
 
-// Initialize Application once DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.appInstance = new App();
-});
+document.addEventListener('DOMContentLoaded', () => { window.app = new App(); });

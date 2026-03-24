@@ -104,31 +104,32 @@ Use this history to:
 - Give personalized advice based on their patterns`;
     }
 
-    const systemPrompt = `You are an expert prompt engineering tutor. Analyze the user's AI prompt and provide detailed, actionable feedback.
-
-You MUST respond with ONLY valid JSON in this EXACT format (no markdown, no code blocks, just raw JSON):
+    const systemPrompt = `You are an expert prompt engineering coach. Analyze the given prompt and return ONLY valid JSON (no markdown, no backticks) with this exact structure:
 {
-  "score": <number 1-10>,
-  "verdict": "<short 2-5 word verdict like 'Needs Major Work' or 'Good Foundation' or 'Excellent Prompt'>",
-  "description": "<1-2 sentence summary of the overall quality>",
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
-  "improved_prompt": "<the full, significantly improved version of their prompt demonstrating best practices>",
+  "score": <integer 1-10>,
+  "label": "<Needs Major Work | Developing | Good Foundation | Strong Prompt | Professional-Grade>",
+  "tone": "<Formal | Casual | Technical | Creative | Analytical | Directive>",
+  "elements": { "role": <bool>, "format": <bool>, "constraints": <bool>, "examples": <bool>, "context": <bool> },
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "missing": ["<gap 1>", "<gap 2>"],
   "tips": [
     {"title": "<tip title>", "description": "<specific actionable tip>"},
     {"title": "<tip title>", "description": "<specific actionable tip>"},
     {"title": "<tip title>", "description": "<specific actionable tip>"}
-  ]
+  ],
+  "improved": "<rewritten improved version of the prompt>",
+  "improvedDeveloper": "<version optimized for developer/technical use>",
+  "improvedBeginner": "<simpler version suitable for a beginner>"
 }
 
 Scoring guide:
 - 1-3: Vague, no context, no specifics, no constraints
 - 4-5: Some structure but missing key elements (role, format, constraints)
-- 6-7: Good foundation with some specifics, could be improved
+- 6-7: Good foundation with good specifics, could be improved
 - 8-9: Well-structured with role, context, format, and constraints
 - 10: Professional-grade prompt with everything perfect
 
-Always provide at least 2 strengths (even for weak prompts, find something positive) and at least 2 weaknesses (even for strong prompts). The improved prompt should be significantly better and teach by example.${historyContext}`;
+Always provide at least 2 strengths and 2 missing elements. All three improved prompts should be significantly better and teach by example. Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
 
     try {
         const response = await fetchWithRetry(GROQ_API_URL, {
@@ -175,7 +176,7 @@ Always provide at least 2 strengths (even for weak prompts, find something posit
             return res.status(500).json({ error: 'Unexpected AI response format. Please try again.' });
         }
 
-        if (!analysis.score || !analysis.strengths || !analysis.weaknesses || !analysis.improved_prompt) {
+        if (!analysis.score || !analysis.strengths || !analysis.improved) {
             return res.status(500).json({ error: 'Incomplete analysis received. Please try again.' });
         }
 

@@ -115,6 +115,29 @@ app.post('/api/analyze', async (req, res) => {
             analysis.score = calculatedAverage;
         }
 
+        // --- SECOND CALL: Execute original prompt ---
+        const executionResponse = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 2000
+            })
+        });
+
+        let promptResult = "No result generated.";
+        if (executionResponse.ok) {
+            const executionData = await executionResponse.json();
+            promptResult = executionData.choices[0]?.message?.content || "Empty response from AI.";
+        }
+
         // Store in memory
         const entry = {
             id: Date.now().toString(),
@@ -122,13 +145,14 @@ app.post('/api/analyze', async (req, res) => {
             score: analysis.score || 0,
             verdict: analysis.verdict || 'Analyzed',
             analysis,
+            promptResult,
             created_at: new Date().toISOString()
         };
         
         promptHistory.unshift(entry);
         if (promptHistory.length > 50) promptHistory = promptHistory.slice(0, 50);
 
-        res.json({ analysis });
+        res.json({ analysis, promptResult });
     } catch (error) {
         console.error('Analysis error:', error);
         res.status(500).json({ error: error.message });

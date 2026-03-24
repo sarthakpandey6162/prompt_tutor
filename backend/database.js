@@ -38,12 +38,20 @@ function saveAnalysis(promptText, analysis) {
         id: Date.now(),
         prompt_text: promptText,
         score: analysis.score,
-        verdict: analysis.verdict || '',
-        description: analysis.description || '',
+        // New fields
+        label: analysis.label || analysis.verdict || '',
+        tone: analysis.tone || '',
+        elements: analysis.elements || {},
         strengths: analysis.strengths || [],
-        weaknesses: analysis.weaknesses || [],
-        improved_prompt: analysis.improved_prompt || '',
+        missing: analysis.missing || analysis.weaknesses || [],
         tips: analysis.tips || [],
+        improved: analysis.improved || analysis.improved_prompt || '',
+        improvedDeveloper: analysis.improvedDeveloper || '',
+        improvedBeginner: analysis.improvedBeginner || '',
+        // Legacy compat
+        verdict: analysis.label || analysis.verdict || '',
+        weaknesses: analysis.missing || analysis.weaknesses || [],
+        improved_prompt: analysis.improved || analysis.improved_prompt || '',
         created_at: new Date().toISOString()
     };
     
