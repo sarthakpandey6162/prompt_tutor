@@ -3,274 +3,294 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Prompt Tutor — Upgrade your AI prompts with instant analysis and actionable feedback.">
+    <meta name="description" content="Prompt Tutor — Upgrade your AI prompts with instant analysis.">
     <title>Prompt Tutor</title>
     <link rel="icon" href="logo.png" type="image/png">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
-        <!-- ===== Sidebar ===== -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">
-                    <img src="logo.png" alt="Prompt Tutor" class="logo-img">
-                    <span class="logo-text">Prompt Tutor</span>
-                </div>
-                <button class="mobile-close-sidebar" id="closeSidebarBtn" aria-label="Close">×</button>
-            </div>
-            <nav class="sidebar-nav">
-                <div class="nav-section-title">Workspace</div>
-                <button class="nav-item active" data-view="workspace" aria-label="New Chat">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                    New Chat
-                </button>
-                <div class="nav-section-title">Library</div>
-                <button class="nav-item" data-view="history" aria-label="History">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    History
-                    <span class="nav-badge" id="historyBadge" style="display:none">0</span>
-                </button>
-            </nav>
-            <div class="sidebar-footer">
-                <button class="nav-item" id="apiKeyToggle" aria-label="Settings">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    Settings
-                    <div class="status-indicator" id="apiStatusDot"></div>
-                </button>
-            </div>
-        </aside>
+<div class="app">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sb-header">
+            <img src="logo.png" alt="PT" class="sb-logo">
+            <span class="sb-title">Prompt Tutor</span>
+            <button class="sb-close" id="sbClose" aria-label="Close">×</button>
+        </div>
+        <nav class="sb-nav">
+            <button class="sb-item active" data-view="craft">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Craft
+            </button>
+            <button class="sb-item" data-view="library">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Library
+                <span class="sb-badge" id="historyBadge" style="display:none">0</span>
+            </button>
+            <button class="sb-item" data-view="stats">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Stats
+            </button>
+            <button class="sb-item" data-view="cheatsheet">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Cheat Sheet
+            </button>
+        </nav>
+        <div class="sb-footer">
+            <button class="sb-item" id="settingsBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+                <span class="sb-dot" id="apiDot"></span>
+            </button>
+        </div>
+    </aside>
 
-        <!-- ===== Main Content ===== -->
-        <main class="main-content">
-            <!-- Mobile Header -->
-            <header class="mobile-header" id="mobileHeader">
-                <button class="menu-toggle" id="menuToggleBtn" aria-label="Menu">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <img src="logo.png" alt="PT" class="mobile-logo-img">
-                <div style="width:22px"></div>
-            </header>
+    <!-- ===== Main ===== -->
+    <main class="main">
+        <!-- Mobile header -->
+        <header class="mob-header" id="mobHeader">
+            <button class="mob-menu" id="mobMenu" aria-label="Menu">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <img src="logo.png" alt="PT" class="mob-logo">
+            <div style="width:22px"></div>
+        </header>
 
-            <!-- View: Workspace -->
-            <div class="view active view-workspace" id="view-workspace">
-                <!-- LEFT: Editor Pane -->
-                <div class="editor-pane">
-                    <div class="editor-content">
-                        <div class="pane-header">
-                            <h1>Craft Your Prompt</h1>
-                            <p class="pane-subtitle">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
+        <!-- ====== VIEW: CRAFT ====== -->
+        <section class="view active" id="view-craft">
+            <div class="craft-layout">
+                <!-- Editor -->
+                <div class="craft-editor">
+                    <div class="craft-inner">
+                        <h1 class="page-title">Craft Your Prompt</h1>
+                        <p class="page-sub">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
+
+                        <!-- Templates -->
+                        <div class="tpl-row">
+                            <button class="tpl" data-tpl="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason, and a professional closing.">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Formal Email
+                            </button>
+                            <button class="tpl" data-tpl="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                                Code Logic
+                            </button>
+                            <button class="tpl" data-tpl="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                                Tutor
+                            </button>
+                            <button class="tpl" data-tpl="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
+                                Summarize
+                            </button>
+                            <button class="tpl" data-tpl="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
+                                Brainstorm
+                            </button>
                         </div>
 
-                        <!-- Quick Templates -->
-                        <div class="templates-section">
-                            <div class="templates-grid" id="templatesGrid">
-                                <button class="template-card" data-prompt="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason for the request, and a professional closing.">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                    <span>Formal Email</span>
-                                </button>
-                                <button class="template-card" data-prompt="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                                    <span>Code Logic</span>
-                                </button>
-                                <button class="template-card" data-prompt="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                                    <span>Tutor</span>
-                                </button>
-                                <button class="template-card" data-prompt="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
-                                    <span>Summarize</span>
-                                </button>
-                                <button class="template-card" data-prompt="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
-                                    <span>Brainstorm</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Textarea -->
-                        <div class="input-container" id="inputContainer">
-                            <textarea id="promptInput" placeholder="Type or paste your prompt here..." aria-label="Prompt Input"></textarea>
-                            <!-- Live Element Detection Badges -->
-                            <div class="element-badges" id="elementBadges">
-                                <span class="el-badge missing" id="badge-role" data-el="role">Role</span>
-                                <span class="el-badge missing" id="badge-format" data-el="format">Format</span>
-                                <span class="el-badge missing" id="badge-constraints" data-el="constraints">Constraints</span>
-                                <span class="el-badge missing" id="badge-examples" data-el="examples">Examples</span>
-                                <span class="el-badge missing" id="badge-context" data-el="context">Context</span>
-                                <span class="tone-badge" id="toneBadge">Neutral</span>
-                            </div>
-                            <!-- Live Stats -->
-                            <div class="live-stats" id="liveStats">
-                                <span><strong id="statWords">0</strong> words</span>
-                                <span class="stat-dot">·</span>
-                                <span><strong id="statChars">0</strong> chars</span>
-                                <span class="stat-dot">·</span>
-                                <span>~<strong id="statTokens">0</strong> tokens</span>
+                        <!-- Input -->
+                        <div class="input-wrap" id="inputWrap">
+                            <textarea id="promptInput" placeholder="Type or paste your prompt here..." aria-label="Prompt"></textarea>
+                            <div class="input-meta">
+                                <div class="el-pills" id="elPills">
+                                    <span class="el-pill missing" data-el="role"><span class="el-dot"></span>Role</span>
+                                    <span class="el-pill missing" data-el="format"><span class="el-dot"></span>Format</span>
+                                    <span class="el-pill missing" data-el="constraints"><span class="el-dot"></span>Constraints</span>
+                                    <span class="el-pill missing" data-el="examples"><span class="el-dot"></span>Examples</span>
+                                    <span class="el-pill missing" data-el="context"><span class="el-dot"></span>Context</span>
+                                    <span class="tone-pill" id="tonePill">Neutral</span>
+                                </div>
+                                <div class="live-counts">
+                                    <span><b id="wc">0</b> words</span>
+                                    <span class="dot-sep">·</span>
+                                    <span><b id="cc">0</b> chars</span>
+                                    <span class="dot-sep">·</span>
+                                    <span>~<b id="tc">0</b> tokens</span>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Actions -->
-                        <div class="editor-actions">
+                        <div class="craft-actions">
                             <button class="btn btn-ghost" id="clearBtn">Clear</button>
                             <button class="btn btn-primary" id="analyzeBtn" disabled>
-                                <span class="submit-text" id="submitText">Analyze Prompt</span>
-                                <span class="btn-loader" id="btnLoader" style="display:none"></span>
+                                <span id="analyzeTxt">Analyze Prompt</span>
+                                <span class="spinner" id="analyzeSpinner" style="display:none"></span>
                             </button>
                         </div>
 
                         <!-- Error -->
-                        <div class="error-banner" id="errorBanner" style="display:none">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                            <span id="errorMessage">Something went wrong.</span>
-                            <button class="error-close" id="errorClose" aria-label="Close">×</button>
+                        <div class="err-bar" id="errBar" style="display:none">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            <span id="errMsg"></span>
+                            <button class="err-close" id="errClose">×</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- RIGHT: Analysis Pane -->
-                <div class="analysis-pane" id="analysisPane">
+                <!-- Results Pane -->
+                <div class="craft-results" id="resultsPane">
                     <!-- Empty State -->
-                    <div id="welcomeState" class="panel-empty-state">
-                        <div class="empty-icon-wrap">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-icon">
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                         </div>
-                        <h3>Ready for Analysis</h3>
-                        <p>Enter a prompt and click <strong>"Analyze Prompt"</strong> to get a detailed score, feedback, and an improved version.</p>
+                        <h3>Analyze a prompt to see feedback here</h3>
+                        <p>Enter a prompt and click "Analyze Prompt" to get scoring, feedback, and improvements.</p>
                     </div>
 
-                    <!-- Results -->
-                    <div class="results-container" id="resultsSection" style="display:none">
-                        <!-- Score Card -->
+                    <!-- Results Content -->
+                    <div class="results-wrap" id="resultsWrap" style="display:none">
+                        <!-- Score -->
                         <div class="score-card">
-                            <div class="score-card-header">
-                                <div>
-                                    <h2 class="score-label" id="scoreLabel">Analyzed</h2>
-                                    <span class="score-tone-badge" id="scoreTone">—</span>
-                                </div>
-                                <div class="score-ring-wrap">
-                                    <svg class="score-ring-svg" width="96" height="96" viewBox="0 0 96 96">
-                                        <circle class="score-ring-bg" cx="48" cy="48" r="42"/>
-                                        <circle class="score-ring-fill" id="scoreRingFill" cx="48" cy="48" r="42" stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
-                                    </svg>
-                                    <div class="score-ring-value" id="scoreBadge">0<span class="score-max">/10</span></div>
-                                </div>
+                            <div class="score-ring-wrap">
+                                <svg class="score-ring" width="110" height="110" viewBox="0 0 110 110">
+                                    <circle class="ring-bg" cx="55" cy="55" r="48"/>
+                                    <circle class="ring-fill" id="ringFill" cx="55" cy="55" r="48" stroke-dasharray="301.59" stroke-dashoffset="301.59"/>
+                                </svg>
+                                <div class="score-num" id="scoreNum">0<span>/10</span></div>
                             </div>
-                            <!-- Element Pills from API -->
-                            <div class="score-elements" id="scoreElements"></div>
+                            <div class="score-label" id="scoreLabel">—</div>
+                            <div class="score-tone" id="scoreTone">—</div>
+                            <div class="score-els" id="scoreEls"></div>
                         </div>
 
-                        <!-- Strengths & Missing -->
-                        <div class="feedback-grid">
-                            <div class="feedback-col strengths-col">
-                                <h4 class="feed-title">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                    Strengths
-                                </h4>
+                        <!-- Feedback -->
+                        <div class="fb-grid">
+                            <div class="fb-col fb-good">
+                                <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Strengths</h4>
                                 <ul id="strengthsList"></ul>
                             </div>
-                            <div class="feedback-col missing-col">
-                                <h4 class="feed-title">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                    Missing Elements
-                                </h4>
+                            <div class="fb-col fb-bad">
+                                <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Missing</h4>
                                 <ul id="missingList"></ul>
                             </div>
                         </div>
 
-                        <!-- Pro Tips -->
-                        <div class="tips-section">
-                            <h4 class="section-title">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
+                        <!-- Tips Accordion -->
+                        <div class="section-block">
+                            <h4 class="section-h">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
                                 Pro Tips
                             </h4>
-                            <div id="tipsList" class="tips-list"></div>
+                            <div id="tipsList" class="tips-acc"></div>
                         </div>
 
-                        <!-- Improved Prompt with Improve-For Tabs -->
-                        <div class="improved-section">
-                            <div class="improved-header">
-                                <h4 class="section-title">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <!-- Improved Prompt -->
+                        <div class="improved-block">
+                            <div class="improved-top">
+                                <h4 class="section-h">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                                     Improved Prompt
                                 </h4>
-                                <div class="improved-actions">
-                                    <button class="btn btn-sm btn-ghost" id="useImprovedBtn" aria-label="Use in editor">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                <div class="improved-btns">
+                                    <button class="btn btn-sm btn-ghost" id="useBtn">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                         Use in Editor
                                     </button>
-                                    <button class="btn btn-sm btn-ghost" id="copyImprovedBtn" aria-label="Copy">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                                        <span id="copyBtnText">Copy</span>
+                                    <button class="btn btn-sm btn-ghost" id="copyBtn">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        <span id="copyTxt">Copy</span>
                                     </button>
                                 </div>
                             </div>
-                            <!-- Improve For Tabs -->
-                            <div class="improve-tabs">
-                                <button class="improve-tab active" data-variant="default">Default</button>
-                                <button class="improve-tab" data-variant="developer">Developer</button>
-                                <button class="improve-tab" data-variant="beginner">Beginner</button>
+                            <div class="var-tabs">
+                                <button class="var-tab active" data-var="default">Default</button>
+                                <button class="var-tab" data-var="developer">Developer</button>
+                                <button class="var-tab" data-var="beginner">Beginner</button>
                             </div>
                             <div class="improved-body">
-                                <div class="improved-text" id="improvedPrompt"></div>
+                                <pre class="improved-text" id="improvedText"></pre>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <!-- View: History -->
-            <div class="view" id="view-history">
-                <div class="history-scroll-area">
-                    <div class="history-header-bar">
-                        <div>
-                            <h1>Prompt Library</h1>
-                            <p class="history-subtitle">Your previously analyzed prompts</p>
+        <!-- ====== VIEW: LIBRARY ====== -->
+        <section class="view" id="view-library">
+            <div class="page-scroll">
+                <div class="page-inner">
+                    <h1 class="page-title">Prompt Library</h1>
+                    <p class="page-sub">Your previously analyzed prompts</p>
+                    <div class="lib-bar">
+                        <div class="filter-grp">
+                            <button class="filt active" data-f="all">All</button>
+                            <button class="filt" data-f="high">High Quality</button>
+                            <button class="filt" data-f="mid">Needs Work</button>
+                            <button class="filt" data-f="low">Weak</button>
                         </div>
-                        <div class="history-actions">
-                            <div class="filter-group">
-                                <button class="filter-btn active" data-filter="all">All</button>
-                                <button class="filter-btn" data-filter="high">High 7+</button>
-                                <button class="filter-btn" data-filter="mid">Needs Work</button>
-                                <button class="filter-btn" data-filter="low">Weak</button>
-                            </div>
-                            <button class="btn btn-ghost" id="clearHistoryBtn">Clear All</button>
-                        </div>
+                        <button class="btn btn-ghost btn-sm" id="clearAllBtn">Clear All</button>
                     </div>
-                    <!-- History Empty State -->
-                    <div class="history-empty" id="historyEmpty">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div class="lib-empty" id="libEmpty">
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <h3>No prompts yet</h3>
                         <p>Analyze your first prompt to start building your library.</p>
                     </div>
-                    <div class="history-grid" id="historyList"></div>
+                    <div class="lib-grid" id="libGrid"></div>
                 </div>
             </div>
-        </main>
-    </div>
+        </section>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
+        <!-- ====== VIEW: STATS ====== -->
+        <section class="view" id="view-stats">
+            <div class="page-scroll">
+                <div class="page-inner">
+                    <h1 class="page-title">Your Progress</h1>
+                    <p class="page-sub">Track your prompt engineering journey</p>
+                    <div class="stat-cards" id="statCards">
+                        <div class="stat-card"><div class="sc-label">Total Analyzed</div><div class="sc-val" id="sTot">0</div></div>
+                        <div class="stat-card"><div class="sc-label">Average Score</div><div class="sc-val" id="sAvg">0</div></div>
+                        <div class="stat-card"><div class="sc-label">Best Score</div><div class="sc-val" id="sBest">0</div></div>
+                        <div class="stat-card"><div class="sc-label">This Week</div><div class="sc-val" id="sWeek">0</div></div>
+                    </div>
+                    <div class="chart-section">
+                        <h3 class="chart-title">Score Distribution</h3>
+                        <div class="bar-chart" id="barChart"></div>
+                    </div>
+                    <div class="trend-section">
+                        <h3 class="chart-title">Recent Trend</h3>
+                        <div class="dot-timeline" id="dotTimeline"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <!-- API Settings Modal -->
-    <div class="modal-overlay" id="apiModal">
-        <div class="modal-backdrop" id="apiModalBackdrop"></div>
-        <div class="modal-panel">
-            <div class="modal-header">
-                <h2 class="modal-title">Settings</h2>
-                <button class="modal-close" id="closeApiModal" aria-label="Close">×</button>
+        <!-- ====== VIEW: CHEAT SHEET ====== -->
+        <section class="view" id="view-cheatsheet">
+            <div class="page-scroll">
+                <div class="page-inner cs-inner">
+                    <h1 class="page-title">Prompt Cheat Sheet</h1>
+                    <p class="page-sub">Quick reference for writing better prompts</p>
+                    <div class="cs-list" id="csList"></div>
+                </div>
             </div>
-            <p class="modal-description">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis. The key is stored securely on your local server.</p>
-            <div class="modal-field">
-                <label for="apiKeyInput">API Key</label>
-                <input type="password" id="apiKeyInput" class="input-styled" placeholder="gsk_...">
-            </div>
-            <button id="saveApiKeyBtn" class="btn btn-primary btn-full">Save Configuration</button>
-            <div id="apiKeyStatus" class="modal-status"></div>
+        </section>
+    </main>
+</div>
+
+<!-- Toast -->
+<div class="toast-box" id="toastBox"></div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-bg" id="modalBg"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2>Settings</h2>
+            <button class="modal-x" id="modalX">×</button>
         </div>
+        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable analysis.</p>
+        <label class="modal-label" for="apiKeyInput">API Key</label>
+        <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
+        <button class="btn btn-primary btn-full" id="saveKeyBtn">Save Configuration</button>
+        <div class="modal-msg" id="modalMsg"></div>
     </div>
+</div>
 
-    <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

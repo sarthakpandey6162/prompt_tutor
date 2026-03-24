@@ -104,36 +104,37 @@ Use this history to:
 - Give personalized advice based on their patterns`;
     }
 
-    const systemPrompt = `You are an expert prompt engineering coach. Analyze the given prompt and return ONLY valid JSON (no markdown, no backticks) with this exact structure:
+    const systemPrompt = `You are an expert prompt engineering coach. Analyze the user's prompt and return ONLY a raw JSON object — no markdown, no backticks, no explanation. Use this exact structure:
+
 {
   "score": <integer 1-10>,
-  "label": "<Needs Major Work | Developing | Good Foundation | Strong Prompt | Professional-Grade>",
+  "label": "<Needs Major Work | Good Foundation | Strong Prompt | Professional-Grade>",
   "tone": "<Formal | Casual | Technical | Creative | Analytical | Directive>",
-  "elements": { "role": <bool>, "format": <bool>, "constraints": <bool>, "examples": <bool>, "context": <bool> },
-  "strengths": ["<strength 1>", "<strength 2>"],
-  "missing": ["<gap 1>", "<gap 2>"],
+  "elements": {
+    "role": <true|false>,
+    "format": <true|false>,
+    "constraints": <true|false>,
+    "examples": <true|false>,
+    "context": <true|false>
+  },
+  "strengths": ["max 2 items, specific to this prompt"],
+  "missing": ["max 2 items, specific to this prompt"],
   "tips": [
-    {"title": "<tip title>", "description": "<specific actionable tip>"},
-    {"title": "<tip title>", "description": "<specific actionable tip>"},
-    {"title": "<tip title>", "description": "<specific actionable tip>"}
+    { "title": "short title", "body": "2 sentence explanation" },
+    { "title": "short title", "body": "2 sentence explanation" }
   ],
-  "improved": "<rewritten improved version of the prompt>",
-  "improvedDeveloper": "<version optimized for developer/technical use>",
-  "improvedBeginner": "<simpler version suitable for a beginner>"
+  "improved": "rewritten version of the exact user prompt",
+  "improvedDeveloper": "technical/developer optimized version",
+  "improvedBeginner": "simplified beginner-friendly version"
 }
 
-Scoring guide:
-- 1-3: Vague, no context, no specifics, no constraints
-- 4-5: Some structure but missing key elements (role, format, constraints)
-- 6-7: Good foundation with good specifics, could be improved
-- 8-9: Well-structured with role, context, format, and constraints
-- 10: Professional-grade prompt with everything perfect
+Label guide:
+- 1-3: "Needs Major Work"
+- 4-6: "Good Foundation"
+- 7-8: "Strong Prompt"
+- 9-10: "Professional-Grade"
 
-Always provide at least 2 strengths and 2 missing elements.
-
-CRITICAL: The "improved", "improvedDeveloper", and "improvedBeginner" fields MUST each be a direct rewrite of the exact user prompt provided — not a generic example or unrelated prompt. Each variant must preserve the user's original intent and topic while improving clarity, structure, and quality. "improved" is the default best version. "improvedDeveloper" should optimize for technical/developer use cases. "improvedBeginner" should simplify language for a beginner. All three must be full, ready-to-use prompts.
-
-Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
+All improved variants MUST be rewrites of the actual user prompt. Never return generic examples. Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
 
     try {
         const response = await fetchWithRetry(GROQ_API_URL, {
