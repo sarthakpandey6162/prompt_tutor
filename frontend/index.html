@@ -3,206 +3,235 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Prompt Tutor — Upgrade your AI prompts with instant analysis.">
+    <meta name="description" content="Prompt Tutor — Craft perfect AI prompts with instant analysis.">
     <title>Prompt Tutor</title>
     <link rel="icon" href="logo.png" type="image/png">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app">
-    <!-- ===== Sidebar ===== -->
+    <!-- ===== SIDEBAR (desktop) ===== -->
     <aside class="sidebar" id="sidebar">
-        <div class="sb-header">
+        <div class="sb-head">
             <img src="logo.png" alt="PT" class="sb-logo">
-            <span class="sb-title">Prompt Tutor</span>
-            <button class="sb-close" id="sbClose" aria-label="Close">×</button>
+            <span class="sb-brand">Prompt Tutor</span>
         </div>
         <nav class="sb-nav">
-            <button class="sb-item active" data-view="craft">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Craft
+            <button class="sb-link active" data-view="craft">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>Craft</span>
             </button>
-            <button class="sb-item" data-view="library">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                Library
-                <span class="sb-badge" id="historyBadge" style="display:none">0</span>
+            <button class="sb-link" data-view="library">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                <span>Library</span>
+                <span class="sb-badge" id="libBadge" style="display:none">0</span>
             </button>
-            <button class="sb-item" data-view="stats">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                Stats
+            <button class="sb-link" data-view="stats">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <span>Stats</span>
             </button>
-            <button class="sb-item" data-view="cheatsheet">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                Cheat Sheet
+            <button class="sb-link" data-view="cheatsheet">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <span>Cheat Sheet</span>
             </button>
         </nav>
-        <div class="sb-footer">
-            <button class="sb-item" id="settingsBtn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
-                <span class="sb-dot" id="apiDot"></span>
+        <div class="sb-bottom">
+            <button class="sb-link" id="settingsNav">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+                <span class="api-dot" id="apiDot"></span>
             </button>
         </div>
     </aside>
 
-    <!-- ===== Main ===== -->
-    <main class="main">
-        <!-- Mobile header -->
-        <header class="mob-header" id="mobHeader">
-            <button class="mob-menu" id="mobMenu" aria-label="Menu">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-            <img src="logo.png" alt="PT" class="mob-logo">
-            <div style="width:22px"></div>
-        </header>
+    <!-- ===== MOBILE BOTTOM TAB BAR ===== -->
+    <nav class="btm-bar" id="btmBar">
+        <button class="btm-tab active" data-view="craft">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </button>
+        <button class="btm-tab" data-view="library">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </button>
+        <button class="btm-tab" data-view="stats">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </button>
+        <button class="btm-tab" data-view="cheatsheet">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </button>
+        <button class="btm-tab" id="btmSettings">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+    </nav>
 
-        <!-- ====== VIEW: CRAFT ====== -->
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main" id="mainContent">
+
+        <!-- === VIEW: CRAFT === -->
         <section class="view active" id="view-craft">
-            <div class="craft-layout">
-                <!-- Editor -->
-                <div class="craft-editor">
-                    <div class="craft-inner">
-                        <h1 class="page-title">Craft Your Prompt</h1>
-                        <p class="page-sub">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
-
-                        <!-- Templates -->
-                        <div class="tpl-row">
-                            <button class="tpl" data-tpl="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason, and a professional closing.">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                Formal Email
-                            </button>
-                            <button class="tpl" data-tpl="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                                Code Logic
-                            </button>
-                            <button class="tpl" data-tpl="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                                Tutor
-                            </button>
-                            <button class="tpl" data-tpl="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
-                                Summarize
-                            </button>
-                            <button class="tpl" data-tpl="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
-                                Brainstorm
-                            </button>
+            <div class="craft-grid">
+                <!-- Editor Column -->
+                <div class="craft-col craft-editor" id="editorCol">
+                    <div class="editor-card">
+                        <div class="editor-head">
+                            <div>
+                                <h1 class="pg-title">Craft Your Prompt</h1>
+                                <p class="pg-sub">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
+                            </div>
                         </div>
-
-                        <!-- Input -->
-                        <div class="input-wrap" id="inputWrap">
-                            <textarea id="promptInput" placeholder="Type or paste your prompt here..." aria-label="Prompt"></textarea>
-                            <div class="input-meta">
-                                <div class="el-pills" id="elPills">
+                        <div class="tpl-scroll">
+                            <div class="tpl-row">
+                                <button class="tpl" data-tpl="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason, and a professional closing.">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                    Formal Email
+                                </button>
+                                <button class="tpl" data-tpl="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                                    Code Logic
+                                </button>
+                                <button class="tpl" data-tpl="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                                    Tutor
+                                </button>
+                                <button class="tpl" data-tpl="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
+                                    Summarize
+                                </button>
+                                <button class="tpl" data-tpl="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
+                                    Brainstorm
+                                </button>
+                            </div>
+                        </div>
+                        <div class="textarea-grow">
+                            <textarea id="promptInput" placeholder="Type or paste your prompt here…" spellcheck="false"></textarea>
+                        </div>
+                        <div class="editor-bottom">
+                            <div class="meta-row">
+                                <div class="el-pills">
                                     <span class="el-pill missing" data-el="role"><span class="el-dot"></span>Role</span>
                                     <span class="el-pill missing" data-el="format"><span class="el-dot"></span>Format</span>
                                     <span class="el-pill missing" data-el="constraints"><span class="el-dot"></span>Constraints</span>
                                     <span class="el-pill missing" data-el="examples"><span class="el-dot"></span>Examples</span>
                                     <span class="el-pill missing" data-el="context"><span class="el-dot"></span>Context</span>
-                                    <span class="tone-pill" id="tonePill">Neutral</span>
                                 </div>
-                                <div class="live-counts">
+                                <span class="tone-pill" id="tonePill">Neutral</span>
+                            </div>
+                            <div class="bottom-bar">
+                                <div class="counts">
                                     <span><b id="wc">0</b> words</span>
-                                    <span class="dot-sep">·</span>
+                                    <span class="sep">·</span>
                                     <span><b id="cc">0</b> chars</span>
-                                    <span class="dot-sep">·</span>
+                                    <span class="sep">·</span>
                                     <span>~<b id="tc">0</b> tokens</span>
+                                </div>
+                                <div class="actions">
+                                    <button class="btn btn-ghost" id="clearBtn">Clear</button>
+                                    <button class="btn btn-primary" id="analyzeBtn" disabled>
+                                        <span id="analyzeTxt">Analyze Prompt</span>
+                                        <span class="spinner" id="spinner" style="display:none"></span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Actions -->
-                        <div class="craft-actions">
-                            <button class="btn btn-ghost" id="clearBtn">Clear</button>
-                            <button class="btn btn-primary" id="analyzeBtn" disabled>
-                                <span id="analyzeTxt">Analyze Prompt</span>
-                                <span class="spinner" id="analyzeSpinner" style="display:none"></span>
-                            </button>
-                        </div>
-
-                        <!-- Error -->
-                        <div class="err-bar" id="errBar" style="display:none">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                            <span id="errMsg"></span>
-                            <button class="err-close" id="errClose">×</button>
-                        </div>
+                    </div>
+                    <!-- Error -->
+                    <div class="err-bar" id="errBar" style="display:none">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span id="errMsg"></span>
+                        <button class="err-x" id="errX">×</button>
                     </div>
                 </div>
 
-                <!-- Results Pane -->
-                <div class="craft-results" id="resultsPane">
-                    <!-- Empty State -->
+                <!-- Results Column -->
+                <div class="craft-col craft-results" id="resultsCol">
+                    <!-- Empty -->
                     <div class="empty-state" id="emptyState">
-                        <div class="empty-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        <div class="empty-glow">
+                            <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
+                                <circle cx="36" cy="36" r="30" stroke="#C7D2FE" stroke-width="2" stroke-dasharray="6 4"/>
+                                <path d="M36 20L39 30H49L41 37L44 47L36 41L28 47L31 37L23 30H33L36 20Z" fill="#A5B4FC" fill-opacity="0.3" stroke="#818CF8" stroke-width="1.5"/>
+                                <circle cx="36" cy="36" r="4" fill="#4F46E5" fill-opacity="0.2"/>
+                            </svg>
                         </div>
-                        <h3>Analyze a prompt to see feedback here</h3>
-                        <p>Enter a prompt and click "Analyze Prompt" to get scoring, feedback, and improvements.</p>
+                        <h3>Ready to analyze</h3>
+                        <p>Paste your prompt and click Analyze to get instant feedback</p>
                     </div>
 
-                    <!-- Results Content -->
-                    <div class="results-wrap" id="resultsWrap" style="display:none">
-                        <!-- Score -->
+                    <!-- Loading -->
+                    <div class="loading-state" id="loadingState" style="display:none">
+                        <div class="skel-bar"></div>
+                        <div class="skel-bar short"></div>
+                        <div class="skel-bar shorter"></div>
+                        <div class="loading-spinner"></div>
+                        <p class="loading-text">Analyzing your prompt…</p>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="results-content" id="resultsContent" style="display:none">
+                        <!-- Score Card -->
                         <div class="score-card">
-                            <div class="score-ring-wrap">
-                                <svg class="score-ring" width="110" height="110" viewBox="0 0 110 110">
-                                    <circle class="ring-bg" cx="55" cy="55" r="48"/>
-                                    <circle class="ring-fill" id="ringFill" cx="55" cy="55" r="48" stroke-dasharray="301.59" stroke-dashoffset="301.59"/>
+                            <div class="score-ring-area">
+                                <svg class="score-ring" width="90" height="90" viewBox="0 0 90 90">
+                                    <circle class="ring-track" cx="45" cy="45" r="38"/>
+                                    <circle class="ring-progress" id="ringProgress" cx="45" cy="45" r="38"/>
                                 </svg>
-                                <div class="score-num" id="scoreNum">0<span>/10</span></div>
+                                <div class="score-val" id="scoreVal">0<span>/10</span></div>
                             </div>
-                            <div class="score-label" id="scoreLabel">—</div>
-                            <div class="score-tone" id="scoreTone">—</div>
-                            <div class="score-els" id="scoreEls"></div>
+                            <div class="score-info">
+                                <div class="score-label" id="scoreLabel">—</div>
+                                <div class="score-badges">
+                                    <span class="score-tone" id="scoreTone">—</span>
+                                </div>
+                                <div class="score-els" id="scoreEls"></div>
+                            </div>
                         </div>
 
-                        <!-- Feedback -->
-                        <div class="fb-grid">
-                            <div class="fb-col fb-good">
-                                <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Strengths</h4>
+                        <!-- Feedback Grid -->
+                        <div class="fb-row">
+                            <div class="fb-card fb-good">
+                                <h4>Strengths</h4>
                                 <ul id="strengthsList"></ul>
                             </div>
-                            <div class="fb-col fb-bad">
-                                <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Missing</h4>
+                            <div class="fb-card fb-bad">
+                                <h4>Missing</h4>
                                 <ul id="missingList"></ul>
                             </div>
                         </div>
 
-                        <!-- Tips Accordion -->
+                        <!-- Tips -->
                         <div class="section-block">
-                            <h4 class="section-h">
+                            <h4 class="sec-title">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
                                 Pro Tips
                             </h4>
                             <div id="tipsList" class="tips-acc"></div>
                         </div>
 
-                        <!-- Improved Prompt -->
-                        <div class="improved-block">
-                            <div class="improved-top">
-                                <h4 class="section-h">
+                        <!-- Improved -->
+                        <div class="improved-card">
+                            <div class="improved-head">
+                                <h4 class="sec-title">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                                     Improved Prompt
                                 </h4>
-                                <div class="improved-btns">
-                                    <button class="btn btn-sm btn-ghost" id="useBtn">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                        Use in Editor
-                                    </button>
-                                    <button class="btn btn-sm btn-ghost" id="copyBtn">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                                        <span id="copyTxt">Copy</span>
-                                    </button>
+                                <div class="imp-actions">
+                                    <button class="btn btn-outline btn-sm" id="useBtn">⚡ Use in Editor</button>
+                                    <button class="btn btn-ghost btn-sm" id="copyBtn">📋 <span id="copyTxt">Copy</span></button>
                                 </div>
                             </div>
-                            <div class="var-tabs">
+                            <div class="var-bar">
                                 <button class="var-tab active" data-var="default">Default</button>
                                 <button class="var-tab" data-var="developer">Developer</button>
                                 <button class="var-tab" data-var="beginner">Beginner</button>
                             </div>
-                            <div class="improved-body">
-                                <pre class="improved-text" id="improvedText"></pre>
+                            <div class="imp-body">
+                                <pre class="imp-text" id="impText"></pre>
                             </div>
                         </div>
                     </div>
@@ -210,23 +239,27 @@
             </div>
         </section>
 
-        <!-- ====== VIEW: LIBRARY ====== -->
+        <!-- === VIEW: LIBRARY === -->
         <section class="view" id="view-library">
             <div class="page-scroll">
-                <div class="page-inner">
-                    <h1 class="page-title">Prompt Library</h1>
-                    <p class="page-sub">Your previously analyzed prompts</p>
-                    <div class="lib-bar">
-                        <div class="filter-grp">
-                            <button class="filt active" data-f="all">All</button>
-                            <button class="filt" data-f="high">High Quality</button>
-                            <button class="filt" data-f="mid">Needs Work</button>
-                            <button class="filt" data-f="low">Weak</button>
+                <div class="page-wrap">
+                    <div class="lib-header">
+                        <div>
+                            <h1 class="pg-title">Prompt Library</h1>
+                            <p class="pg-sub">Your previously analyzed prompts</p>
                         </div>
-                        <button class="btn btn-ghost btn-sm" id="clearAllBtn">Clear All</button>
+                        <div class="lib-actions">
+                            <div class="filter-grp">
+                                <button class="filt active" data-f="all">All</button>
+                                <button class="filt" data-f="high">High Quality</button>
+                                <button class="filt" data-f="mid">Needs Work</button>
+                                <button class="filt" data-f="low">Weak</button>
+                            </div>
+                            <button class="btn btn-danger btn-sm" id="clearAllBtn" style="display:none">Clear All</button>
+                        </div>
                     </div>
                     <div class="lib-empty" id="libEmpty">
-                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <h3>No prompts yet</h3>
                         <p>Analyze your first prompt to start building your library.</p>
                     </div>
@@ -235,59 +268,64 @@
             </div>
         </section>
 
-        <!-- ====== VIEW: STATS ====== -->
+        <!-- === VIEW: STATS === -->
         <section class="view" id="view-stats">
             <div class="page-scroll">
-                <div class="page-inner">
-                    <h1 class="page-title">Your Progress</h1>
-                    <p class="page-sub">Track your prompt engineering journey</p>
-                    <div class="stat-cards" id="statCards">
-                        <div class="stat-card"><div class="sc-label">Total Analyzed</div><div class="sc-val" id="sTot">0</div></div>
-                        <div class="stat-card"><div class="sc-label">Average Score</div><div class="sc-val" id="sAvg">0</div></div>
-                        <div class="stat-card"><div class="sc-label">Best Score</div><div class="sc-val" id="sBest">0</div></div>
-                        <div class="stat-card"><div class="sc-label">This Week</div><div class="sc-val" id="sWeek">0</div></div>
+                <div class="page-wrap">
+                    <h1 class="pg-title">Your Progress</h1>
+                    <p class="pg-sub">Track your prompt engineering journey</p>
+                    <div class="stat-cards">
+                        <div class="stat-card sc-indigo"><div class="sc-num" id="sTot">0</div><div class="sc-lbl">Total Analyzed</div></div>
+                        <div class="stat-card sc-amber"><div class="sc-num" id="sAvg">0</div><div class="sc-lbl">Average Score</div></div>
+                        <div class="stat-card sc-green"><div class="sc-num" id="sBest">0</div><div class="sc-lbl">Best Score</div></div>
+                        <div class="stat-card sc-blue"><div class="sc-num" id="sWeek">0</div><div class="sc-lbl">This Week</div></div>
                     </div>
-                    <div class="chart-section">
-                        <h3 class="chart-title">Score Distribution</h3>
-                        <div class="bar-chart" id="barChart"></div>
+                    <div class="chart-card">
+                        <h3 class="chart-h">Score Distribution</h3>
+                        <div id="barChart" class="bar-chart"></div>
                     </div>
-                    <div class="trend-section">
-                        <h3 class="chart-title">Recent Trend</h3>
-                        <div class="dot-timeline" id="dotTimeline"></div>
+                    <div class="chart-card">
+                        <h3 class="chart-h">Recent Trend</h3>
+                        <div id="dotTimeline" class="dot-tl"></div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- ====== VIEW: CHEAT SHEET ====== -->
+        <!-- === VIEW: CHEAT SHEET === -->
         <section class="view" id="view-cheatsheet">
             <div class="page-scroll">
-                <div class="page-inner cs-inner">
-                    <h1 class="page-title">Prompt Cheat Sheet</h1>
-                    <p class="page-sub">Quick reference for writing better prompts</p>
-                    <div class="cs-list" id="csList"></div>
+                <div class="page-wrap cs-wrap">
+                    <h1 class="pg-title">Prompt Cheat Sheet</h1>
+                    <p class="pg-sub">Quick reference for writing better prompts</p>
+                    <div id="csList" class="cs-list"></div>
                 </div>
             </div>
         </section>
     </main>
 </div>
 
-<!-- Toast -->
-<div class="toast-box" id="toastBox"></div>
+<!-- Toast Container -->
+<div class="toast-stack" id="toastStack"></div>
 
 <!-- Settings Modal -->
-<div class="modal-overlay" id="settingsModal">
-    <div class="modal-bg" id="modalBg"></div>
+<div class="modal-wrap" id="modal">
+    <div class="modal-overlay" id="modalOverlay"></div>
     <div class="modal-card">
-        <div class="modal-head">
+        <div class="modal-top">
             <h2>Settings</h2>
             <button class="modal-x" id="modalX">×</button>
         </div>
-        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable analysis.</p>
-        <label class="modal-label" for="apiKeyInput">API Key</label>
-        <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
+        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis.</p>
+        <label class="modal-lbl">API Key</label>
+        <div class="key-input-wrap">
+            <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
+            <button class="key-toggle" id="keyToggle" type="button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+        </div>
         <button class="btn btn-primary btn-full" id="saveKeyBtn">Save Configuration</button>
-        <div class="modal-msg" id="modalMsg"></div>
+        <div class="modal-status" id="modalStatus"></div>
     </div>
 </div>
 
