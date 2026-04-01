@@ -23,6 +23,17 @@ class App {
         ];
         this.loadingTick = null;
         this.charts = { line: null, bar: null, radar: null };
+        this.particle = {
+            canvas: null,
+            ctx: null,
+            particles: [],
+            dpr: Math.min(window.devicePixelRatio || 1, 2),
+            rafId: null,
+            width: 0,
+            height: 0,
+            palette: null,
+            reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        };
         this.cache();
         this.bind();
         // Spotlight effect (Optimized with rAF)
@@ -115,6 +126,7 @@ class App {
             themeToggle: document.getElementById('themeToggle'),
             themeIcon: document.getElementById('themeIcon'),
             themeLabel: document.getElementById('themeLabel'),
+            particleCanvas: document.getElementById('particleCanvas'),
             // Toast
             toastStack: document.getElementById('toastStack'),
             // Tour
@@ -212,6 +224,7 @@ class App {
 
     async init() {
         this.loadTheme();
+        this.initParticles();
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
@@ -232,8 +245,133 @@ class App {
         document.documentElement.setAttribute('data-theme', next);
         localStorage.setItem('pt_theme', next);
         this.updateThemeUI(next);
+        this.updateParticlePalette();
         if (document.getElementById('view-stats')?.classList.contains('active')) {
             this.loadStats();
+        }
+    }
+
+    initParticles() {
+        const canvas = this.$.particleCanvas;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        this.particle.canvas = canvas;
+        this.particle.ctx = ctx;
+
+        const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const onMotionChange = (e) => {
+            this.particle.reducedMotion = e.matches;
+            this.rebuildParticles();
+        };
+        if (typeof media.addEventListener === 'function') {
+            media.addEventListener('change', onMotionChange);
+        } else if (typeof media.addListener === 'function') {
+            media.addListener(onMotionChange);
+        }
+
+        window.addEventListener('resize', () => this.rebuildParticles(), { passive: true });
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (this.particle.rafId) cancelAnimationFrame(this.particle.rafId);
+                this.particle.rafId = null;
+            } else if (!this.particle.rafId) {
+                this.animateParticles();
+            }
+        });
+
+        this.rebuildParticles();
+    }
+
+    updateParticlePalette() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        this.particle.palette = isDark
+            ? ['129, 140, 248', '45, 212, 191', '244, 114, 182']
+            : ['79, 70, 229', '16, 185, 129', '99, 102, 241'];
+    }
+
+    rebuildParticles() {
+        if (!this.particle.canvas || !this.particle.ctx) return;
+
+        const { canvas, ctx } = this.particle;
+        this.particle.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.particle.width = window.innerWidth;
+        this.particle.height = window.innerHeight;
+
+        canvas.width = Math.floor(this.particle.width * this.particle.dpr);
+        canvas.height = Math.floor(this.particle.height * this.particle.dpr);
+        canvas.style.width = `${this.particle.width}px`;
+        canvas.style.height = `${this.particle.height}px`;
+        ctx.setTransform(this.particle.dpr, 0, 0, this.particle.dpr, 0, 0);
+
+        this.updateParticlePalette();
+        const area = this.particle.width * this.particle.height;
+        const targetCount = this.particle.reducedMotion
+            ? Math.max(16, Math.round(area / 100000))
+            : Math.max(28, Math.round(area / 52000));
+
+        this.particle.particles = Array.from({ length: targetCount }, () => {
+            const speedScale = this.particle.reducedMotion ? 0.06 : 0.22;
+            return {
+                x: Math.random() * this.particle.width,
+                y: Math.random() * this.particle.height,
+                r: Math.random() * 2.2 + 0.8,
+                vx: (Math.random() - 0.5) * speedScale,
+                vy: (Math.random() - 0.5) * speedScale,
+                alpha: Math.random() * 0.35 + 0.15,
+                c: this.particle.palette[Math.floor(Math.random() * this.particle.palette.length)]
+            };
+        });
+
+        if (this.particle.rafId) cancelAnimationFrame(this.particle.rafId);
+        this.particle.rafId = null;
+        this.animateParticles();
+    }
+
+    animateParticles() {
+        if (!this.particle.ctx || !this.particle.canvas || document.hidden) return;
+
+        const { ctx, width, height, particles } = this.particle;
+        ctx.clearRect(0, 0, width, height);
+
+        for (const p of particles) {
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < -20) p.x = width + 20;
+            if (p.x > width + 20) p.x = -20;
+            if (p.y < -20) p.y = height + 20;
+            if (p.y > height + 20) p.y = -20;
+
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(${p.c}, ${p.alpha})`;
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        const maxDist = 120;
+        for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+                const a = particles[i];
+                const b = particles[j];
+                const dx = a.x - b.x;
+                const dy = a.y - b.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < maxDist) {
+                    const op = (1 - dist / maxDist) * 0.18;
+                    ctx.strokeStyle = `rgba(148, 163, 184, ${op})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b.x, b.y);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        if (!this.particle.reducedMotion) {
+            this.particle.rafId = requestAnimationFrame(() => this.animateParticles());
         }
     }
 
