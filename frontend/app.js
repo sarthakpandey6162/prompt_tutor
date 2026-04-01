@@ -433,35 +433,35 @@ class App {
                 icon: '📘',
                 title: 'Prompt Basics',
                 summary: 'Understand what makes a good prompt and why it matters',
-                content: '<p>Strong prompts are specific, structured, and contextual.</p><ul><li><strong>Role:</strong> "Act as a hiring manager"</li><li><strong>Format:</strong> "Return as a table"</li><li><strong>Constraints:</strong> "Under 150 words"</li><li><strong>Examples:</strong> "Input: X -> Output: Y"</li><li><strong>Context:</strong> "Audience is beginners"</li></ul>'
+                content: '<p>Strong prompts are specific, structured, and contextual. Think of prompts as brief specs, not casual requests.</p><h4>Core structure to follow</h4><ul><li><strong>Role:</strong> "Act as a hiring manager"</li><li><strong>Format:</strong> "Return as a table with columns: skill, gap, recommendation"</li><li><strong>Constraints:</strong> "Under 150 words"</li><li><strong>Examples:</strong> "Input: X -> Output: Y"</li><li><strong>Context:</strong> "Audience is beginners"</li></ul><h4>Mini example</h4><p><strong>Weak:</strong> "Help me with my resume"</p><p><strong>Strong:</strong> "Act as a senior recruiter. Review this resume for a frontend role. Return 5 bullet points with one specific fix each. Keep under 130 words."</p>'
             },
             {
                 id: 'l2',
                 icon: '🧠',
                 title: 'Role Assignment',
                 summary: 'Learn how assigning roles to AI dramatically improves output quality',
-                content: '<p><strong>Without role:</strong> "Write feedback for this resume."</p><p><strong>With role:</strong> "Act as a senior recruiter. Give concise resume feedback with hiring criteria."</p><p>The role narrows perspective and improves consistency.</p>'
+                content: '<p>Role assignment sets the model perspective and raises answer quality instantly.</p><p><strong>Without role:</strong> "Write feedback for this resume."</p><p><strong>With role:</strong> "Act as a senior recruiter. Give concise resume feedback using hiring criteria, impact, and clarity."</p><h4>Why it works</h4><ul><li>Creates a clear decision lens</li><li>Improves consistency across responses</li><li>Reduces generic fluff</li></ul><p>Use role + domain + audience for best results.</p>'
             },
             {
                 id: 'l3',
                 icon: '🧪',
                 title: 'Few-Shot Prompting',
                 summary: 'Provide examples to guide AI output format and style',
-                content: '<p>Few-shot prompting gives examples before the task.</p><p><strong>Example:</strong><br>Input: "Refund request" -> Output: "Empathetic 3-line response"</p><p>Then provide your new input. The model mirrors style and structure better.</p>'
+                content: '<p>Few-shot prompting means: show examples first, then ask for new output.</p><h4>Pattern</h4><p>Input A -> Output A<br>Input B -> Output B<br>Input C -> ?</p><h4>Practical example</h4><p><strong>Example:</strong> Input: "Refund request" -> Output: "Empathetic 3-line response"</p><p>Then your new case gets more consistent style, length, and tone.</p><ul><li>Great for email writing</li><li>Great for JSON response templates</li><li>Great for support/chat tone consistency</li></ul>'
             },
             {
                 id: 'l4',
                 icon: '🪜',
                 title: 'Chain of Thought',
                 summary: 'Guide AI to think step-by-step for complex tasks',
-                content: '<p>For difficult reasoning tasks, use scaffolding language:</p><ul><li>"Think step by step"</li><li>"Explain assumptions first"</li><li>"Then provide final answer"</li></ul><p>This improves logic transparency and reduces mistakes.</p>'
+                content: '<p>For difficult reasoning tasks, use scaffolding language to reduce mistakes.</p><h4>Useful phrases</h4><ul><li>"Think step by step"</li><li>"Explain assumptions first"</li><li>"List 2 alternatives, then choose best"</li><li>"Then provide final answer"</li></ul><p>This improves logic transparency and catches edge cases before final output.</p><h4>Tip</h4><p>For production prompts, ask for a short reasoning summary, then final answer in a strict format.</p>'
             },
             {
                 id: 'l5',
                 icon: '📏',
                 title: 'Constraints & Format',
                 summary: 'Control AI output length, format and style',
-                content: '<p>Always add limits and target format:</p><ul><li>"Max 120 words"</li><li>"Return JSON with keys: summary, risks, next_steps"</li><li>"Use plain English for a 10-year-old"</li></ul><p>Constraints make responses usable immediately.</p>'
+                content: '<p>Constraints and format convert "nice output" into "usable output".</p><h4>High-value constraints</h4><ul><li>"Max 120 words"</li><li>"Exactly 5 bullets"</li><li>"No jargon"</li><li>"Include one concrete example"</li></ul><h4>Format controls</h4><ul><li>"Return JSON with keys: summary, risks, next_steps"</li><li>"Use markdown table with columns: issue, impact, fix"</li><li>"Use plain English for a 10-year-old"</li></ul><p>Constraints make responses predictable and easy to integrate into workflows.</p>'
             }
         ];
     }
@@ -1366,9 +1366,9 @@ class App {
         this.toast('Lesson marked complete', 'ok');
     }
 
-    renderChallengesList() {
+    renderChallengesList(showList = true) {
         if (!this.$.challengeList) return;
-        this.showChallengesList();
+        if (showList) this.showChallengesList();
         this.$.challengeList.innerHTML = this.challenges.map((c, idx) => {
             const done = !!this.challengeState[c.id];
             return `<button class="challenge-card ${done ? 'done' : ''}" data-id="${c.id}">
@@ -1400,6 +1400,7 @@ class App {
         this.$.challengeInput.value = localStorage.getItem(`pt_challenge_draft_${challenge.id}`) || '';
         this.$.challengeResult.textContent = '';
         this.$.challengeResult.className = 'challenge-result';
+        this.$.challengeResult.style.display = 'none';
         this.$.challengeFeedback.innerHTML = '';
         this.$.challengeList.style.display = 'none';
         this.$.challengeDetail.style.display = 'block';
@@ -1413,12 +1414,17 @@ class App {
         if (!prompt) {
             this.$.challengeResult.className = 'challenge-result fail';
             this.$.challengeResult.textContent = 'Please enter your prompt first.';
+            this.$.challengeResult.style.display = 'block';
             return;
         }
         localStorage.setItem(`pt_challenge_draft_${id}`, prompt);
 
         this.$.challengeSubmit.disabled = true;
         this.$.challengeSubmit.textContent = 'Analyzing...';
+        this.$.challengeResult.className = 'challenge-result';
+        this.$.challengeResult.textContent = 'Analyzing your challenge prompt...';
+        this.$.challengeResult.style.display = 'block';
+        this.$.challengeFeedback.innerHTML = '';
         try {
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
@@ -1431,27 +1437,37 @@ class App {
             const analysis = this.normalizeAnalysis(d.analysis || d, prompt);
             const score = parseFloat(String(analysis.score).split('/')[0]) || 0;
             const passed = score >= challenge.pass;
+            const position = this.getScorePosition(score);
 
             if (passed) {
                 this.challengeState[id] = true;
                 this.saveProgressState('pt_challenges_completed', this.challengeState);
                 this.$.challengeResult.className = 'challenge-result pass';
-                this.$.challengeResult.textContent = 'Challenge Passed! ✓';
+                this.$.challengeResult.textContent = `Challenge Passed! ✓ Your score: ${score}/10. Position: ${position}.`;
                 this.$.challengeFeedback.innerHTML = '';
             } else {
                 this.$.challengeResult.className = 'challenge-result fail';
-                this.$.challengeResult.textContent = `Score was ${score}/10. Need ${challenge.pass}+ to pass. Try again!`;
+                this.$.challengeResult.textContent = `Score was ${score}/10. Need ${challenge.pass}+ to pass. Position: ${position}. Try again!`;
                 const feedback = [...(analysis.missing || []), ...(analysis.tips || []).map(t => t.title)].slice(0, 5);
                 this.$.challengeFeedback.innerHTML = feedback.map(f => `<li>${this.esc(typeof f === 'string' ? f : '')}</li>`).join('');
             }
-            this.renderChallengesList();
+            this.$.challengeResult.style.display = 'block';
+            this.renderChallengesList(false);
         } catch (err) {
             this.$.challengeResult.className = 'challenge-result fail';
             this.$.challengeResult.textContent = err.message || 'Challenge submission failed.';
+            this.$.challengeResult.style.display = 'block';
         } finally {
             this.$.challengeSubmit.disabled = false;
             this.$.challengeSubmit.textContent = 'Submit Challenge';
         }
+    }
+
+    getScorePosition(score) {
+        if (score >= 9) return 'Expert Prompt Engineer';
+        if (score >= 7) return 'Advanced Prompt Engineer';
+        if (score >= 5) return 'Intermediate Prompt Engineer';
+        return 'Beginner Prompt Engineer';
     }
 
     /* ===== Helpers ===== */

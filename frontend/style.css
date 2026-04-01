@@ -2018,7 +2018,7 @@ textarea:focus-visible, input:focus-visible {
 .challenge-list {
     margin-top: 16px;
     display: grid;
-    gap: 12px;
+    gap: 14px;
 }
 
 .lesson-card,
@@ -2028,7 +2028,7 @@ textarea:focus-visible, input:focus-visible {
     border-radius: var(--r-lg);
     background: var(--card);
     color: var(--tx);
-    padding: 14px 16px;
+    padding: 18px 18px;
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 12px;
@@ -2048,13 +2048,13 @@ textarea:focus-visible, input:focus-visible {
 }
 
 .lesson-icon {
-    width: 38px;
-    height: 38px;
+    width: 46px;
+    height: 46px;
     border-radius: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 22px;
     background: var(--accent-lt);
     border: 1px solid var(--accent-glow);
 }
@@ -2075,14 +2075,14 @@ textarea:focus-visible, input:focus-visible {
 }
 
 .lesson-meta strong {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
 }
 
 .lesson-meta span {
     color: var(--tx2);
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 14px;
+    line-height: 1.55;
 }
 
 .lesson-tail {
@@ -2108,30 +2108,60 @@ textarea:focus-visible, input:focus-visible {
     border: 1px solid var(--border);
     border-radius: var(--r-xl);
     background: var(--card);
-    padding: 18px;
+    padding: 24px;
     box-shadow: var(--sh-sm);
 }
 
 .lesson-title {
-    margin-top: 14px;
-    margin-bottom: 6px;
+    margin-top: 18px;
+    margin-bottom: 10px;
     font-family: var(--ff-h);
-    font-size: 24px;
+    font-size: 36px;
+    line-height: 1.05;
 }
 
 .lesson-desc {
     color: var(--tx2);
-    margin-bottom: 14px;
+    margin-bottom: 18px;
+    font-size: 24px;
+    line-height: 1.26;
 }
 
 .lesson-content {
     color: var(--tx2);
-    line-height: 1.7;
-    margin-bottom: 16px;
+    line-height: 1.78;
+    margin-bottom: 20px;
+    font-size: 14px;
 }
 
 .lesson-content ul {
     padding-left: 18px;
+}
+
+.lesson-content h4 {
+    margin: 14px 0 6px;
+    color: var(--tx);
+    font-size: 15px;
+}
+
+#lessonCompleteBtn {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border-color: transparent;
+    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.26);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+#lessonCompleteBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(34, 197, 94, 0.3);
+}
+
+#lessonCompleteBtn:disabled {
+    opacity: 1;
+    background: linear-gradient(135deg, #34d399, #16a34a);
+    color: #fff;
+    cursor: default;
 }
 
 .challenge-input {
@@ -2153,6 +2183,7 @@ textarea:focus-visible, input:focus-visible {
     border-radius: var(--r-md);
     border: 1px solid var(--border);
     color: var(--tx2);
+    min-height: 44px;
 }
 
 .challenge-result.pass {
