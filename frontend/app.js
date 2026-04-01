@@ -334,6 +334,13 @@ class App {
 
         const s = a.score || 0;
         const circ = 238.76; // 2*π*38
+        // Reset ring first for smooth animation
+        this.$.ringProgress.style.transition = 'none';
+        this.$.ringProgress.style.strokeDashoffset = circ;
+        // Force reflow to ensure the reset takes effect
+        this.$.ringProgress.getBoundingClientRect();
+        // Animate to target
+        this.$.ringProgress.style.transition = 'stroke-dashoffset 0.8s ease-out, stroke 0.3s ease';
         this.$.ringProgress.style.strokeDashoffset = circ - (s / 10) * circ;
         this.$.ringProgress.style.stroke = s >= 7 ? 'url(#grad-high)' : s >= 4 ? 'url(#grad-mid)' : 'url(#grad-low)';
         this.$.scoreVal.innerHTML = `${s}<span>/10</span>`;
@@ -400,9 +407,13 @@ class App {
         if (this.showDiff) {
             this.$.impText.style.display = 'none';
             this.$.diffView.style.display = 'block';
+            this.$.diffView.style.opacity = '0';
+            requestAnimationFrame(() => { this.$.diffView.style.opacity = '1'; });
             this.renderDiff();
         } else {
             this.$.impText.style.display = 'block';
+            this.$.impText.style.opacity = '0';
+            requestAnimationFrame(() => { this.$.impText.style.opacity = '1'; });
             this.$.diffView.style.display = 'none';
         }
     }
@@ -596,17 +607,17 @@ class App {
             this.$.sWeek.textContent = hist.filter(h => new Date(h.created_at) >= weekAgo).length;
 
             const total = hist.length || 1;
-            const weak = hist.filter(h => h.score < 4).length;
-            const mid = hist.filter(h => h.score >= 4 && h.score < 7).length;
-            const high = hist.filter(h => h.score >= 7).length;
+            const weak = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc < 4; }).length;
+            const mid = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc >= 4 && sc < 7; }).length;
+            const high = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc >= 7; }).length;
 
             this.$.barChart.innerHTML = [
-                {lbl:'Weak (1-3)', count: weak, color:'var(--red)', pct: Math.round(weak/total*100)},
-                {lbl:'Needs Work (4-6)', count: mid, color:'var(--amber)', pct: Math.round(mid/total*100)},
-                {lbl:'High (7-10)', count: high, color:'var(--green)', pct: Math.round(high/total*100)},
+                {lbl:'Weak (1-3)', count: weak, grad:'linear-gradient(135deg, #ef4444, #f87171)', pct: Math.round(weak/total*100)},
+                {lbl:'Needs Work (4-6)', count: mid, grad:'linear-gradient(135deg, #f97316, #fbbf24)', pct: Math.round(mid/total*100)},
+                {lbl:'High (7-10)', count: high, grad:'linear-gradient(135deg, #059669, #34d399)', pct: Math.round(high/total*100)},
             ].map(b => `<div class="bar-row">
                 <span class="bar-lbl">${b.lbl}</span>
-                <div class="bar-track"><div class="bar-fill" style="width:${b.pct}%;background:${b.color}"></div></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${b.pct}%;background:${b.grad}"></div></div>
                 <span class="bar-val">${b.count} (${b.pct}%)</span>
             </div>`).join('');
 
@@ -625,12 +636,13 @@ class App {
                 const lineW = (last5.length - 1) * 52;
                 this.$.dotTimeline.innerHTML = `<div class="dt-line" style="width:${lineW}px"></div>` +
                     last5.map((h,i) => {
-                        const c = this.sColor(h.score);
+                        const sc = parseFloat(String(h.score).split('/')[0]) || 0;
+                        const c = this.sColor(sc);
                         const d = new Date(h.created_at);
                         const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
                         return `<div class="dt-item" style="animation-delay:${i*0.1}s">
                             <div class="dt-dot" style="background:${c};border-color:var(--card)"></div>
-                            <span class="dt-score">${h.score}/10</span>
+                            <span class="dt-score">${sc}/10</span>
                             <span class="dt-date">${ds}</span>
                         </div>`;
                     }).join('');
@@ -641,33 +653,33 @@ class App {
     }
 
     renderLineChart(scoreHistory) {
-        const svg = this.$.lineChart;
-        svg.innerHTML = '';
+        const container = this.$.lineChart;
+        container.innerHTML = '';
 
         if (!scoreHistory || scoreHistory.length < 2) {
-            svg.innerHTML = '<text x="300" y="100" text-anchor="middle" fill="var(--tx3)" font-size="13" font-family="var(--ff)">Analyze at least 2 prompts to see your trend</text>';
+            container.innerHTML = '<text x="300" y="100" text-anchor="middle" fill="var(--tx3)" font-size="13" font-family="var(--ff)">Analyze at least 2 prompts to see your trend</text>';
             this.$.lineXAxis.innerHTML = '';
             return;
         }
 
-        const W = 600, H = 200;
+        const W = 600, H = 220;
         const padX = 20, padY = 15;
         const plotW = W - padX * 2;
         const plotH = H - padY * 2;
         const n = scoreHistory.length;
 
-        // Gradient definition
-        svg.innerHTML = `<defs>
+        // Build SVG content as a single string
+        let svgContent = `<defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>
+                <stop offset="0%" stop-color="#818CF8" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#818CF8" stop-opacity="0.02"/>
             </linearGradient>
         </defs>`;
 
-        // Grid lines
+        // Dashed grid lines
         for (let i = 0; i <= 5; i++) {
             const y = padY + (i / 5) * plotH;
-            svg.innerHTML += `<line class="lc-grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
+            svgContent += `<line class="lc-grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
         }
 
         // Compute points
@@ -677,20 +689,34 @@ class App {
             return { x, y, score: d.score, date: d.date };
         });
 
-        // Area
-        const areaPath = `M${points[0].x},${points[0].y} ` +
-            points.slice(1).map(p => `L${p.x},${p.y}`).join(' ') +
-            ` L${points[n-1].x},${H - padY} L${points[0].x},${H - padY} Z`;
-        svg.innerHTML += `<path class="lc-area" d="${areaPath}"/>`;
+        // Smooth bezier curve helper
+        const smoothLine = (pts) => {
+            if (pts.length < 2) return '';
+            let path = `M${pts[0].x},${pts[0].y}`;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const curr = pts[i];
+                const next = pts[i + 1];
+                const cpx = (curr.x + next.x) / 2;
+                path += ` C${cpx},${curr.y} ${cpx},${next.y} ${next.x},${next.y}`;
+            }
+            return path;
+        };
 
-        // Line
-        const linePath = `M${points.map(p => `${p.x},${p.y}`).join(' L')}`;
-        svg.innerHTML += `<path class="lc-line" d="${linePath}"/>`;
+        // Area (with smooth curve)
+        const curvePath = smoothLine(points);
+        const areaPath = curvePath + ` L${points[n-1].x},${H - padY} L${points[0].x},${H - padY} Z`;
+        svgContent += `<path class="lc-area" d="${areaPath}"/>`;
 
-        // Dots
-        points.forEach(p => {
-            svg.innerHTML += `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="4"/>`;
+        // Line (smooth curve)
+        svgContent += `<path class="lc-line" d="${curvePath}"/>`;
+
+        // Dots with score-based colors and staggered animation
+        points.forEach((p, i) => {
+            const dotColor = p.score >= 7 ? '#059669' : p.score >= 4 ? '#d97706' : '#dc2626';
+            svgContent += `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="5" stroke="${dotColor}" style="animation-delay:${0.8 + i * 0.08}s"/>`;
         });
+
+        container.innerHTML = svgContent;
 
         // X-axis labels
         this.$.lineXAxis.innerHTML = scoreHistory.map(d => {

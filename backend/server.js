@@ -14,7 +14,6 @@ const {
     deleteHistoryItem,
     clearHistory,
     getStats,
-    getRecentContext,
     getSetting,
     setSetting
 } = require('./database');
