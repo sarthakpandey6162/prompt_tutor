@@ -561,23 +561,29 @@ textarea:focus-visible, input:focus-visible {
 }
 
 .example-menu {
-    display: none;
     position: absolute;
-    top: calc(100% + 4px);
+    top: calc(100% + 8px);
     left: 24px;
     width: 340px;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-xl);
     box-shadow: var(--sh-lg);
     z-index: 50;
-    padding: 6px;
-    animation: dropIn 0.15s ease;
+    padding: 8px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px) scale(0.98);
+    transition: opacity 0.2s cubic-bezier(0.2, 0, 0.2, 1), transform 0.2s cubic-bezier(0.2, 0, 0.2, 1), visibility 0.2s;
+    pointer-events: none;
 }
 
-.example-menu.open { display: block; }
-
-@keyframes dropIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.example-menu.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
 
 .example-item {
     display: flex;
@@ -1076,16 +1082,29 @@ textarea:focus-visible, input:focus-visible {
 .tip-item.open .tip-chev { transform: rotate(180deg); }
 
 .tip-body {
-    max-height: 0;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tip-item.open .tip-body { grid-template-rows: 1fr; }
+
+.tip-content {
     overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
-    padding: 0 12px;
     font-size: 13px;
     color: var(--tx2);
     line-height: 1.6;
+    padding: 0 12px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s ease, transform 0.3s ease, padding 0.3s ease;
 }
 
-.tip-item.open .tip-body { max-height: 800px; padding: 8px 12px 12px; }
+.tip-item.open .tip-content {
+    opacity: 1;
+    transform: translateY(0);
+    padding: 8px 12px 14px;
+}
 
 /* Improved Card */
 .improved-card {
@@ -1741,18 +1760,28 @@ textarea:focus-visible, input:focus-visible {
 .cs-item.open .cs-chev { transform: rotate(180deg); }
 
 .cs-body {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.cs-item.open .cs-body { max-height: 1200px; }
+.cs-item.open .cs-body { grid-template-rows: 1fr; }
 
 .cs-content {
-    padding: 0 20px 20px;
+    overflow: hidden;
+    padding: 0 20px;
     font-size: 13px;
     color: var(--tx2);
     line-height: 1.7;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s ease, transform 0.3s ease, padding 0.3s ease;
+}
+
+.cs-item.open .cs-content {
+    padding: 0 20px 20px;
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .cs-content h4 { color: var(--tx); margin: 14px 0 4px; font-size: 13px; }

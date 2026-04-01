@@ -383,7 +383,7 @@ class App {
                     <span>${this.esc(tip.title)}</span>
                     <svg class="tip-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
-                <div class="tip-body">${this.esc(tip.description)}</div>`;
+                <div class="tip-body"><div class="tip-content">${this.esc(tip.description)}</div></div>`;
             item.querySelector('.tip-head').addEventListener('click', () => item.classList.toggle('open'));
             this.$.tipsList.appendChild(item);
         });
