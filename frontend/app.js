@@ -16,7 +16,18 @@ class App {
         this.showDiff = false;
         this.cache();
         this.bind();
-        this.init();
+        // Spotlight effect (Optimized with rAF)
+        let ticking = false;
+        window.addEventListener('mousemove', e => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    document.body.style.setProperty('--mouse-x', `${e.clientX}px`);
+                    document.body.style.setProperty('--mouse-y', `${e.clientY}px`);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
     }
 
     cache() {
