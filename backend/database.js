@@ -100,14 +100,21 @@ function getStats() {
     const prompts = readJSON(DB_PATH);
     if (prompts.length === 0) return { totalAnalyzed: 0, averageScore: 0, bestScore: 0, trend: 'neutral', scoreHistory: [] };
 
-    const scores = prompts.map(p => p.score);
-    const total = prompts.length;
+    // Clean scores from legacy formats like "8/18" and ensure stringified numbers are floats
+    const parsedPrompts = prompts.map(p => ({
+        ...p,
+        cleanScore: parseFloat(String(p.score).split('/')[0]) || 0,
+        cleanDate: p.created_at || new Date().toISOString()
+    }));
+
+    const scores = parsedPrompts.map(p => p.cleanScore);
+    const total = parsedPrompts.length;
     const avgScore = scores.reduce((a, b) => a + b, 0) / total;
     const bestScore = Math.max(...scores);
     
     // Recent trend
-    const recent = prompts.slice(0, 5).map(p => p.score);
-    const older = prompts.slice(5, 10).map(p => p.score);
+    const recent = parsedPrompts.slice(0, 5).map(p => p.cleanScore);
+    const older = parsedPrompts.slice(5, 10).map(p => p.cleanScore);
     
     let trend = 'neutral';
     if (recent.length > 0 && older.length > 0) {
@@ -118,9 +125,9 @@ function getStats() {
     }
 
     // Score history for line chart (chronological, up to last 20)
-    const scoreHistory = prompts.slice(0, 20).reverse().map(p => ({
-        score: p.score,
-        date: p.created_at,
+    const scoreHistory = parsedPrompts.slice(0, 20).reverse().map(p => ({
+        score: p.cleanScore,
+        date: p.cleanDate,
         label: p.category || p.label || p.verdict || ''
     }));
 

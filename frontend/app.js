@@ -265,6 +265,9 @@ class App {
         if (!prompt) return;
         this.originalPrompt = prompt;
         this.setLoading(true);
+        // Clear previous state explicitly
+        this.$.impText.textContent = '';
+        this.analysis = null;
         // Show loading state in results
         this.$.emptyState.style.display = 'none';
         this.$.resultsContent.style.display = 'none';
@@ -332,7 +335,7 @@ class App {
         const s = a.score || 0;
         const circ = 238.76; // 2*π*38
         this.$.ringProgress.style.strokeDashoffset = circ - (s / 10) * circ;
-        this.$.ringProgress.style.stroke = this.sColor(s);
+        this.$.ringProgress.style.stroke = s >= 7 ? 'url(#grad-high)' : s >= 4 ? 'url(#grad-mid)' : 'url(#grad-low)';
         this.$.scoreVal.innerHTML = `${s}<span>/10</span>`;
         this.$.scoreLabel.textContent = a.category || a.scoreLabel || this.sLabel(s);
         this.$.scoreLabel.style.color = this.sColor(s);
@@ -523,16 +526,22 @@ class App {
         if (!items.length) { this.$.libGrid.innerHTML = ''; this.$.libEmpty.style.display = 'flex'; return; }
         this.$.libEmpty.style.display = 'none';
         this.$.libGrid.innerHTML = items.map(i => {
+            const cleanScore = parseFloat(String(i.score).split('/')[0]) || 0;
+            const gradClass = cleanScore >= 7 ? 'sb-high' : cleanScore >= 4 ? 'sb-mid' : 'sb-low';
+            const catBadge = i.tone || i.category || 'Neutral';
             const d = new Date(i.created_at);
             const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
             return `<div class="lib-card" onclick="app.viewItem(${i.id})">
                 <div class="lc-top">
-                    <span class="lc-score" style="background:${this.sColor(i.score)}">${i.score}/10</span>
+                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+                        <span class="lc-score ${gradClass}">${cleanScore}/10</span>
+                        <span class="lc-cat-badge">${this.esc(catBadge)}</span>
+                    </div>
                     <span class="lc-date">${ds}</span>
                 </div>
                 <div class="lc-text">${this.esc(i.prompt_text)}</div>
                 <div class="lc-foot">
-                    <span class="lc-label">${this.esc(i.category||i.label||i.verdict||this.sLabel(i.score))}</span>
+                    <span class="lc-label">${this.esc(i.category||i.label||i.verdict||this.sLabel(cleanScore))}</span>
                     <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>

@@ -23,21 +23,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// ===== Utilities =====
-async function fetchWithRetry(url, options, maxRetries = 3) {
-    let delay = 1500; // start with 1.5s delay
-    for (let i = 0; i < maxRetries; i++) {
-        const response = await fetch(url, options);
-        if (response.status === 429 && i < maxRetries - 1) {
-            console.log(`Rate limit hit (429). Retrying in ${delay}ms... (Attempt ${i + 1} of ${maxRetries - 1})`);
-            await new Promise(r => setTimeout(r, delay + Math.random() * 500)); // Add jitter
-            delay *= 2; // exponential backoff
-            continue;
-        }
-        return response;
-    }
-}
-
 // ===== Middleware =====
 app.use(cors());
 app.use(express.json());
@@ -89,74 +74,56 @@ app.post('/api/analyze', async (req, res) => {
         return res.status(400).json({ error: 'API key not configured. Please set your Groq API key first.' });
     }
 
-    // Get recent history for context
-    const recentHistory = getRecentContext(5);
-    let historyContext = '';
-
-    if (recentHistory.length > 0) {
-        historyContext = `\n\nThe user has analyzed ${recentHistory.length} prompts recently. Here's their history (most recent first):
-${recentHistory.map((h, i) => `${i + 1}. Scored ${h.score}/10 ("${h.verdict}") — "${h.prompt}..." — Weaknesses: ${h.weaknesses.join(', ')}`).join('\n')}
-
-Use this history to:
-- Notice recurring weaknesses and emphasize those
-- Acknowledge improvement if their score is getting better
-- Avoid repeating the exact same tips from previous analyses
-- Give personalized advice based on their patterns`;
-    }
-
-    const systemPrompt = `You are an expert prompt engineering coach. Analyze the user's prompt and return ONLY a raw JSON object — no markdown, no backticks, no explanation. Use this EXACT structure:
-
+    const systemPrompt = `You are a prompt analysis expert. Analyze the user's prompt and respond ONLY with valid JSON, no extra text:
 {
-  "score": <integer 1-10>,
-  "category": "<Needs Major Work | Good Foundation | Strong Prompt | Professional-Grade>",
-  "scoreLabel": "<short 2-3 word verdict>",
-  "tone": "<Formal | Casual | Technical | Creative | Analytical | Directive>",
-  "elements": {
-    "role": <true|false>,
-    "format": <true|false>,
-    "constraints": <true|false>,
-    "examples": <true|false>,
-    "context": <true|false>
-  },
-  "strengths": ["max 2 items, specific to this prompt"],
-  "missing": ["max 2 items, specific to this prompt"],
+  "score": <1-10>,
+  "category": "<Analytical|Creative|Technical|Directive|Casual|Formal>",
+  "scoreLabel": "<Needs Major Work|Good Foundation|Good Prompt|Strong Prompt|Professional-Grade>",
+  "strengths": ["<point>", "<point>"],
+  "missing": ["<point>", "<point>"],
   "proTips": [
-    { "title": "short title", "description": "2 sentence explanation" },
-    { "title": "short title", "description": "2 sentence explanation" }
+    {"title": "<title>", "description": "<one sentence>"}
   ],
   "improved": {
-    "default": "rewritten version of the exact user prompt",
-    "developer": "technical/developer optimized version",
-    "beginner": "simplified beginner-friendly version"
+    "default": "<improved prompt>",
+    "developer": "<technical version>",
+    "beginner": "<simple version>"
   }
 }
+Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
 
-Category guide:
-- 1-3: "Needs Major Work"
-- 4-6: "Good Foundation"
-- 7-8: "Strong Prompt"
-- 9-10: "Professional-Grade"
+    const requestBody = {
+        model: "llama-3.1-8b-instant",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Analyze this prompt:\n"""${prompt.trim()}"""` }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+        max_tokens: 600
+    };
 
-All improved variants MUST be rewrites of the actual user prompt. Never return generic examples. Use the user's previous prompts history (if provided) to give non-repetitive, personalized feedback.${historyContext}`;
+    const fetchOptions = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+    };
 
     try {
-        const response = await fetchWithRetry(GROQ_API_URL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `User's prompt to analyze:\n"""${prompt.trim()}"""` }
-                ],
-                temperature: 0.7,
-                response_format: { type: "json_object" },
-                max_tokens: 4000
-            })
-        });
+        let response = await fetch(GROQ_API_URL, fetchOptions);
+
+        // Single retry after 3s on rate limit
+        if (response.status === 429) {
+            console.log('Rate limit hit (429). Retrying in 3s...');
+            await new Promise(r => setTimeout(r, 3000));
+            response = await fetch(GROQ_API_URL, fetchOptions);
+            if (response.status === 429) {
+                return res.status(429).json({ error: 'API limit reached. Please wait a moment and try again.' });
+            }
+        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));

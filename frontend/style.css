@@ -44,7 +44,7 @@
     /* Radius */
     --r-sm: 6px;
     --r-md: 8px;
-    --r-lg: 12px;
+    --r-lg: 16px;
     --r-xl: 16px;
     --r-pill: 9999px;
 
@@ -54,9 +54,14 @@
     --sh-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
     --sh-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
 
-    /* Transitions */
+    /* Transition */
     --ease: 0.15s ease;
     --sidebar-w: 220px;
+    
+    /* Gradients */
+    --grad-green: linear-gradient(135deg, #22c55e, #16a34a);
+    --grad-orange: linear-gradient(135deg, #f97316, #ea580c);
+    --grad-red: linear-gradient(135deg, #ef4444, #dc2626);
 
     /* Extra for dark mode toggle */
     --editor-bg: #fafbfc;
@@ -171,10 +176,11 @@ textarea:focus-visible, input:focus-visible {
     transition: all var(--ease);
     text-align: left;
     width: 100%;
+    border-left: 3px solid transparent;
 }
 
 .sb-link:hover { background: var(--card-hover); color: var(--tx); }
-.sb-link.active { background: var(--accent-lt); color: var(--accent); }
+.sb-link.active { background: var(--accent-lt); color: var(--accent); border-left-color: var(--accent); }
 .sb-link.active svg { color: var(--accent); }
 .sb-link svg { flex-shrink: 0; transition: color var(--ease); }
 
@@ -353,6 +359,7 @@ textarea:focus-visible, input:focus-visible {
     grid-template-columns: 58fr 42fr;
     height: 100%;
     width: 100%;
+    gap: 16px;
 }
 
 .craft-col {
@@ -619,6 +626,15 @@ textarea:focus-visible, input:focus-visible {
     padding: 20px;
 }
 
+.simple-skel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 24px;
+}
+
 .skel-row {
     display: flex;
     align-items: center;
@@ -709,7 +725,7 @@ textarea:focus-visible, input:focus-visible {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    animation: fadeUp 0.35s ease;
+    animation: fadeIn 0.3s ease forwards;
 }
 
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } }
@@ -793,10 +809,10 @@ textarea:focus-visible, input:focus-visible {
 .se-pill.off .se-dot { border: 1.5px solid var(--tx3); }
 
 /* Feedback */
-.fb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 .fb-card {
-    padding: 16px;
+    padding: 20px;
     border-radius: var(--r-lg);
     border: 1px solid var(--border-lt);
 }
@@ -868,7 +884,7 @@ textarea:focus-visible, input:focus-visible {
     line-height: 1.6;
 }
 
-.tip-item.open .tip-body { max-height: 200px; padding: 8px 12px 12px; }
+.tip-item.open .tip-body { max-height: 800px; padding: 8px 12px 12px; }
 
 /* Improved Card */
 .improved-card {
@@ -917,8 +933,8 @@ textarea:focus-visible, input:focus-visible {
 .imp-body { padding: 16px; }
 
 .imp-text {
-    font-family: var(--mono);
-    font-size: 13px;
+    font-family: var(--ff);
+    font-size: 14px;
     line-height: 1.8;
     color: var(--tx);
     background: var(--code-bg);
@@ -934,8 +950,8 @@ textarea:focus-visible, input:focus-visible {
 
 /* ===== DIFF VIEW ===== */
 .diff-view {
-    font-family: var(--mono);
-    font-size: 13px;
+    font-family: var(--ff);
+    font-size: 14px;
     line-height: 1.8;
     padding: 14px;
     border-radius: var(--r-md);
@@ -1065,7 +1081,7 @@ textarea:focus-visible, input:focus-visible {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    padding: 16px;
+    padding: 20px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
@@ -1073,10 +1089,14 @@ textarea:focus-visible, input:focus-visible {
     box-shadow: var(--sh-xs);
 }
 
+[data-theme="dark"] .lib-card {
+    background: #22232e;
+}
+
 .lib-card:hover {
-    transform: translateY(-3px);
+    transform: scale(1.02);
     border-color: var(--accent);
-    box-shadow: var(--sh-md);
+    box-shadow: 0 0 12px rgba(79, 70, 229, 0.3);
 }
 
 .lc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -1088,6 +1108,20 @@ textarea:focus-visible, input:focus-visible {
     padding: 2px 8px;
     border-radius: var(--r-pill);
     color: #fff;
+}
+
+.sb-high { background: var(--grad-green); }
+.sb-mid { background: var(--grad-orange); }
+.sb-low { background: var(--grad-red); }
+
+.lc-cat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--accent-lt);
+    color: var(--accent);
 }
 
 .lc-date { font-size: 12px; color: var(--tx3); }
@@ -1133,7 +1167,7 @@ textarea:focus-visible, input:focus-visible {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    padding: 20px;
+    padding: 24px 20px;
     text-align: center;
     box-shadow: var(--sh-xs);
     border-left: 3px solid var(--border);
@@ -1146,6 +1180,7 @@ textarea:focus-visible, input:focus-visible {
 
 .sc-num { font-family: var(--ff-h); font-size: 36px; color: var(--tx); margin-bottom: 2px; }
 .sc-lbl { font-size: 12px; text-transform: uppercase; color: var(--tx2); letter-spacing: 0.04em; font-weight: 600; }
+.sc-sub { font-size: 11px; color: var(--tx3); margin-top: 4px; font-weight: 500; }
 
 .chart-card {
     background: var(--card);
