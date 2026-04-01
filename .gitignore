@@ -4,3 +4,4 @@ backend/prompts.json
 backend/settings.json
 backend/.env
 *.log
+.gemini/

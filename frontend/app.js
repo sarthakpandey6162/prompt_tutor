@@ -1,15 +1,19 @@
 /**
  * Prompt Tutor — Linear-style Frontend
  * All 4 pages, loading/skeleton state, mobile bottom tab bar sync
+ * Dark mode, diff view, search, example dropdown, score improvement chart
  */
 
 class App {
     constructor() {
         this.API = location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
         this.analysis = null;
+        this.originalPrompt = '';
         this.variant = 'default';
         this.filter = 'all';
+        this.searchQuery = '';
         this.history = [];
+        this.showDiff = false;
         this.cache();
         this.bind();
         this.init();
@@ -47,13 +51,19 @@ class App {
             missingList: document.getElementById('missingList'),
             tipsList: document.getElementById('tipsList'),
             impText: document.getElementById('impText'),
+            diffView: document.getElementById('diffView'),
+            diffToggle: document.getElementById('diffToggle'),
             useBtn: document.getElementById('useBtn'),
             copyBtn: document.getElementById('copyBtn'),
             copyTxt: document.getElementById('copyTxt'),
             varTabs: document.querySelectorAll('.var-tab'),
+            // Example dropdown
+            exampleTrigger: document.getElementById('exampleTrigger'),
+            exampleMenu: document.getElementById('exampleMenu'),
             // Library
             libGrid: document.getElementById('libGrid'),
             libEmpty: document.getElementById('libEmpty'),
+            libSearch: document.getElementById('libSearch'),
             clearAllBtn: document.getElementById('clearAllBtn'),
             filters: document.querySelectorAll('.filt'),
             // Stats
@@ -62,6 +72,9 @@ class App {
             sBest: document.getElementById('sBest'),
             sWeek: document.getElementById('sWeek'),
             barChart: document.getElementById('barChart'),
+            lineChart: document.getElementById('lineChart'),
+            lineXAxis: document.getElementById('lineXAxis'),
+            trendLabel: document.getElementById('trendLabel'),
             dotTimeline: document.getElementById('dotTimeline'),
             // Modal
             modal: document.getElementById('modal'),
@@ -72,6 +85,10 @@ class App {
             modalStatus: document.getElementById('modalStatus'),
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
+            // Theme
+            themeToggle: document.getElementById('themeToggle'),
+            themeIcon: document.getElementById('themeIcon'),
+            themeLabel: document.getElementById('themeLabel'),
             // Toast
             toastStack: document.getElementById('toastStack'),
         };
@@ -90,19 +107,37 @@ class App {
         // Input
         this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.$.analyzeBtn.disabled = !this.$.input.value.trim(); this.saveDraft(); });
         this.$.input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this.$.analyzeBtn.disabled) { e.preventDefault(); this.analyze(); } });
-        // Templates
-        document.querySelectorAll('.tpl').forEach(t => t.addEventListener('click', () => { this.$.input.value = t.dataset.tpl; this.detect(); this.counts(); this.$.analyzeBtn.disabled = false; this.$.input.focus(); this.saveDraft(); }));
+        // Example dropdown
+        this.$.exampleTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.$.exampleMenu.classList.toggle('open');
+        });
+        document.addEventListener('click', () => this.$.exampleMenu.classList.remove('open'));
+        document.querySelectorAll('.example-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.$.input.value = item.dataset.tpl;
+                this.detect(); this.counts();
+                this.$.analyzeBtn.disabled = false;
+                this.$.input.focus();
+                this.saveDraft();
+                this.$.exampleMenu.classList.remove('open');
+            });
+        });
         // Actions
         this.$.clearBtn.addEventListener('click', () => this.clear());
         this.$.analyzeBtn.addEventListener('click', () => this.analyze());
         this.$.errX.addEventListener('click', () => this.$.errBar.style.display = 'none');
         this.$.useBtn.addEventListener('click', () => this.useImproved());
         this.$.copyBtn.addEventListener('click', () => this.copyImproved());
+        // Diff toggle
+        this.$.diffToggle.addEventListener('click', () => this.toggleDiff());
         // Variant tabs
         this.$.varTabs.forEach(t => t.addEventListener('click', () => { this.$.varTabs.forEach(x => x.classList.remove('active')); t.classList.add('active'); this.variant = t.dataset.var; this.showVariant(); }));
         // Library
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
+        this.$.libSearch.addEventListener('input', () => { this.searchQuery = this.$.libSearch.value.trim().toLowerCase(); this.renderLib(); });
         // Modal
         this.$.modalOverlay.addEventListener('click', () => this.closeModal());
         this.$.modalX.addEventListener('click', () => this.closeModal());
@@ -112,13 +147,41 @@ class App {
             const inp = this.$.apiKeyInput;
             inp.type = inp.type === 'password' ? 'text' : 'password';
         });
+        // Theme toggle
+        this.$.themeToggle.addEventListener('click', () => this.toggleTheme());
     }
 
     async init() {
+        this.loadTheme();
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
         this.buildCheatSheet();
+    }
+
+    /* ===== Dark Mode ===== */
+    loadTheme() {
+        const saved = localStorage.getItem('pt_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        this.updateThemeUI(saved);
+    }
+
+    toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('pt_theme', next);
+        this.updateThemeUI(next);
+    }
+
+    updateThemeUI(theme) {
+        if (theme === 'dark') {
+            this.$.themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+            this.$.themeLabel.textContent = 'Light Mode';
+        } else {
+            this.$.themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+            this.$.themeLabel.textContent = 'Dark Mode';
+        }
     }
 
     /* ===== Navigation ===== */
@@ -200,6 +263,7 @@ class App {
     async analyze() {
         const prompt = this.$.input.value.trim();
         if (!prompt) return;
+        this.originalPrompt = prompt;
         this.setLoading(true);
         // Show loading state in results
         this.$.emptyState.style.display = 'none';
@@ -210,13 +274,53 @@ class App {
             const r = await fetch(`${this.API}/analyze`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({prompt}) });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
-            this.analysis = d.analysis;
+            this.analysis = this.normalizeAnalysis(d.analysis);
             this.variant = 'default';
-            this.render(d.analysis);
+            this.showDiff = false;
+            this.$.diffToggle.classList.remove('active');
+            this.render(this.analysis);
             this.loadBadge();
             this.toast('Analysis complete', 'ok');
         } catch (e) { this.showErr(e.message); this.$.loadingState.style.display = 'none'; this.$.emptyState.style.display = 'flex'; }
         finally { this.setLoading(false); }
+    }
+
+    /* Normalize analysis to handle both old and new schema */
+    normalizeAnalysis(a) {
+        // Handle improved as object or string
+        let improved = '', improvedDev = '', improvedBeg = '';
+        if (typeof a.improved === 'object' && a.improved !== null) {
+            improved = a.improved.default || '';
+            improvedDev = a.improved.developer || '';
+            improvedBeg = a.improved.beginner || '';
+        } else {
+            improved = a.improved || a.improved_prompt || '';
+            improvedDev = a.improvedDeveloper || improved;
+            improvedBeg = a.improvedBeginner || improved;
+        }
+
+        // Handle tips/proTips
+        const tips = (a.proTips || a.tips || []).map(tip => {
+            if (typeof tip === 'string') return { title: tip, description: '' };
+            return {
+                title: tip.title || '',
+                description: tip.description || tip.body || ''
+            };
+        });
+
+        return {
+            score: a.score || 0,
+            category: a.category || a.label || a.verdict || '',
+            scoreLabel: a.scoreLabel || a.label || '',
+            tone: a.tone || '—',
+            elements: a.elements || {},
+            strengths: a.strengths || [],
+            missing: a.missing || a.weaknesses || [],
+            tips,
+            improved,
+            improvedDeveloper: improvedDev,
+            improvedBeginner: improvedBeg,
+        };
     }
 
     render(a) {
@@ -230,7 +334,7 @@ class App {
         this.$.ringProgress.style.strokeDashoffset = circ - (s / 10) * circ;
         this.$.ringProgress.style.stroke = this.sColor(s);
         this.$.scoreVal.innerHTML = `${s}<span>/10</span>`;
-        this.$.scoreLabel.textContent = a.label || a.verdict || this.sLabel(s);
+        this.$.scoreLabel.textContent = a.category || a.scoreLabel || this.sLabel(s);
         this.$.scoreLabel.style.color = this.sColor(s);
         this.$.scoreTone.textContent = a.tone || '—';
 
@@ -246,21 +350,19 @@ class App {
         });
 
         this.$.strengthsList.innerHTML = (a.strengths||[]).map(s => `<li>${this.esc(s)}</li>`).join('') || '<li>—</li>';
-        this.$.missingList.innerHTML = (a.missing||a.weaknesses||[]).map(s => `<li>${this.esc(s)}</li>`).join('') || '<li>—</li>';
+        this.$.missingList.innerHTML = (a.missing||[]).map(s => `<li>${this.esc(s)}</li>`).join('') || '<li>—</li>';
 
         // Tips accordion
         this.$.tipsList.innerHTML = '';
         (a.tips||[]).forEach(tip => {
             const item = document.createElement('div');
             item.className = 'tip-item';
-            const title = typeof tip === 'string' ? tip : (tip.title || '');
-            const body = typeof tip === 'string' ? '' : (tip.body || tip.description || '');
             item.innerHTML = `
                 <button class="tip-head">
-                    <span>${this.esc(title)}</span>
+                    <span>${this.esc(tip.title)}</span>
                     <svg class="tip-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
-                <div class="tip-body">${this.esc(body)}</div>`;
+                <div class="tip-body">${this.esc(tip.description)}</div>`;
             item.querySelector('.tip-head').addEventListener('click', () => item.classList.toggle('open'));
             this.$.tipsList.appendChild(item);
         });
@@ -277,10 +379,74 @@ class App {
         if (!this.analysis) return;
         const a = this.analysis;
         let t = '';
-        if (this.variant === 'developer') t = a.improvedDeveloper || a.improved || a.improved_prompt || '';
-        else if (this.variant === 'beginner') t = a.improvedBeginner || a.improved || a.improved_prompt || '';
-        else t = a.improved || a.improved_prompt || '';
+        if (this.variant === 'developer') t = a.improvedDeveloper || a.improved || '';
+        else if (this.variant === 'beginner') t = a.improvedBeginner || a.improved || '';
+        else t = a.improved || '';
         this.$.impText.textContent = t;
+
+        // Update diff if active
+        if (this.showDiff) {
+            this.renderDiff();
+        }
+    }
+
+    /* ===== Diff View ===== */
+    toggleDiff() {
+        this.showDiff = !this.showDiff;
+        this.$.diffToggle.classList.toggle('active', this.showDiff);
+        if (this.showDiff) {
+            this.$.impText.style.display = 'none';
+            this.$.diffView.style.display = 'block';
+            this.renderDiff();
+        } else {
+            this.$.impText.style.display = 'block';
+            this.$.diffView.style.display = 'none';
+        }
+    }
+
+    renderDiff() {
+        const original = this.originalPrompt || '';
+        const improved = this.$.impText.textContent || '';
+        const diff = this.computeWordDiff(original, improved);
+        this.$.diffView.innerHTML = diff;
+    }
+
+    computeWordDiff(oldText, newText) {
+        const oldWords = oldText.split(/(\s+)/);
+        const newWords = newText.split(/(\s+)/);
+
+        // Simple LCS-based diff
+        const m = oldWords.length, n = newWords.length;
+        const dp = Array.from({length: m + 1}, () => Array(n + 1).fill(0));
+
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (oldWords[i-1] === newWords[j-1]) dp[i][j] = dp[i-1][j-1] + 1;
+                else dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
+            }
+        }
+
+        // Backtrack
+        const result = [];
+        let i = m, j = n;
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && oldWords[i-1] === newWords[j-1]) {
+                result.unshift({ type: 'same', text: oldWords[i-1] });
+                i--; j--;
+            } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+                result.unshift({ type: 'add', text: newWords[j-1] });
+                j--;
+            } else {
+                result.unshift({ type: 'del', text: oldWords[i-1] });
+                i--;
+            }
+        }
+
+        return result.map(r => {
+            if (r.type === 'add') return `<span class="diff-add">${this.esc(r.text)}</span>`;
+            if (r.type === 'del') return `<span class="diff-del">${this.esc(r.text)}</span>`;
+            return this.esc(r.text);
+        }).join('');
     }
 
     /* ===== Actions ===== */
@@ -313,6 +479,9 @@ class App {
         this.$.emptyState.style.display = 'flex';
         this.$.errBar.style.display = 'none';
         this.analysis = null;
+        this.originalPrompt = '';
+        this.showDiff = false;
+        this.$.diffToggle.classList.remove('active');
         this.detect(); this.counts();
         this.$.input.focus();
         this.saveDraft();
@@ -338,9 +507,16 @@ class App {
 
     renderLib() {
         let items = [...this.history];
+
+        // Filter by score
         if (this.filter === 'high') items = items.filter(i => i.score >= 7);
         else if (this.filter === 'mid') items = items.filter(i => i.score >= 4 && i.score < 7);
         else if (this.filter === 'low') items = items.filter(i => i.score < 4);
+
+        // Filter by search
+        if (this.searchQuery) {
+            items = items.filter(i => i.prompt_text.toLowerCase().includes(this.searchQuery));
+        }
 
         this.$.clearAllBtn.style.display = this.history.length > 0 ? 'inline-flex' : 'none';
 
@@ -356,7 +532,7 @@ class App {
                 </div>
                 <div class="lc-text">${this.esc(i.prompt_text)}</div>
                 <div class="lc-foot">
-                    <span class="lc-label">${this.esc(i.label||i.verdict||this.sLabel(i.score))}</span>
+                    <span class="lc-label">${this.esc(i.category||i.label||i.verdict||this.sLabel(i.score))}</span>
                     <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
@@ -372,16 +548,12 @@ class App {
             const d = await r.json();
             this.go('craft');
             this.$.input.value = d.prompt_text;
+            this.originalPrompt = d.prompt_text;
             this.$.analyzeBtn.disabled = false;
             this.detect(); this.counts();
-            this.analysis = {
-                score: d.score, label: d.label || d.verdict, tone: d.tone || '—',
-                elements: d.elements || {}, strengths: d.strengths || [],
-                missing: d.missing || d.weaknesses || [], tips: d.tips || [],
-                improved: d.improved || d.improved_prompt || '',
-                improvedDeveloper: d.improvedDeveloper || '',
-                improvedBeginner: d.improvedBeginner || '',
-            };
+            this.analysis = this.normalizeAnalysis(d);
+            this.showDiff = false;
+            this.$.diffToggle.classList.remove('active');
             this.render(this.analysis);
         } catch (e) {}
     }
@@ -429,6 +601,16 @@ class App {
                 <span class="bar-val">${b.count} (${b.pct}%)</span>
             </div>`).join('');
 
+            // === Score Improvement Line Chart ===
+            this.renderLineChart(stats.scoreHistory || []);
+
+            // === Trend label ===
+            const tl = this.$.trendLabel;
+            if (stats.trend === 'improving') { tl.textContent = '↑ Improving'; tl.className = 'chart-sub up'; }
+            else if (stats.trend === 'declining') { tl.textContent = '↓ Declining'; tl.className = 'chart-sub down'; }
+            else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
+
+            // === Recent Trend Dots ===
             const last5 = hist.slice(0, 5).reverse();
             if (last5.length) {
                 const lineW = (last5.length - 1) * 52;
@@ -447,6 +629,65 @@ class App {
                 this.$.dotTimeline.innerHTML = '<span style="color:var(--tx3);font-size:13px;padding:20px">No data yet</span>';
             }
         } catch (e) {}
+    }
+
+    renderLineChart(scoreHistory) {
+        const svg = this.$.lineChart;
+        svg.innerHTML = '';
+
+        if (!scoreHistory || scoreHistory.length < 2) {
+            svg.innerHTML = '<text x="300" y="100" text-anchor="middle" fill="var(--tx3)" font-size="13" font-family="var(--ff)">Analyze at least 2 prompts to see your trend</text>';
+            this.$.lineXAxis.innerHTML = '';
+            return;
+        }
+
+        const W = 600, H = 200;
+        const padX = 20, padY = 15;
+        const plotW = W - padX * 2;
+        const plotH = H - padY * 2;
+        const n = scoreHistory.length;
+
+        // Gradient definition
+        svg.innerHTML = `<defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>
+            </linearGradient>
+        </defs>`;
+
+        // Grid lines
+        for (let i = 0; i <= 5; i++) {
+            const y = padY + (i / 5) * plotH;
+            svg.innerHTML += `<line class="lc-grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
+        }
+
+        // Compute points
+        const points = scoreHistory.map((d, i) => {
+            const x = padX + (i / (n - 1)) * plotW;
+            const y = padY + (1 - d.score / 10) * plotH;
+            return { x, y, score: d.score, date: d.date };
+        });
+
+        // Area
+        const areaPath = `M${points[0].x},${points[0].y} ` +
+            points.slice(1).map(p => `L${p.x},${p.y}`).join(' ') +
+            ` L${points[n-1].x},${H - padY} L${points[0].x},${H - padY} Z`;
+        svg.innerHTML += `<path class="lc-area" d="${areaPath}"/>`;
+
+        // Line
+        const linePath = `M${points.map(p => `${p.x},${p.y}`).join(' L')}`;
+        svg.innerHTML += `<path class="lc-line" d="${linePath}"/>`;
+
+        // Dots
+        points.forEach(p => {
+            svg.innerHTML += `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="4"/>`;
+        });
+
+        // X-axis labels
+        this.$.lineXAxis.innerHTML = scoreHistory.map(d => {
+            const dt = new Date(d.date);
+            return `<span>${!isNaN(dt) ? dt.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''}</span>`;
+        }).join('');
     }
 
     /* ===== Cheat Sheet ===== */

@@ -34,24 +34,41 @@ function initDatabase() {
 
 function saveAnalysis(promptText, analysis) {
     const prompts = readJSON(DB_PATH);
+
+    // Normalize improved: support both object {default,developer,beginner} and legacy string
+    let impDefault = '', impDev = '', impBeg = '';
+    if (typeof analysis.improved === 'object' && analysis.improved !== null) {
+        impDefault = analysis.improved.default || '';
+        impDev = analysis.improved.developer || '';
+        impBeg = analysis.improved.beginner || '';
+    } else {
+        impDefault = analysis.improved || analysis.improved_prompt || '';
+        impDev = analysis.improvedDeveloper || impDefault;
+        impBeg = analysis.improvedBeginner || impDefault;
+    }
+
+    // Normalize tips: support both proTips (new) and tips (old)
+    const tips = analysis.proTips || analysis.tips || [];
+
     const newEntry = {
         id: Date.now(),
         prompt_text: promptText,
         score: analysis.score,
-        // New fields
-        label: analysis.label || analysis.verdict || '',
+        category: analysis.category || analysis.label || analysis.verdict || '',
+        scoreLabel: analysis.scoreLabel || analysis.label || '',
         tone: analysis.tone || '',
         elements: analysis.elements || {},
         strengths: analysis.strengths || [],
         missing: analysis.missing || analysis.weaknesses || [],
-        tips: analysis.tips || [],
-        improved: analysis.improved || analysis.improved_prompt || '',
-        improvedDeveloper: analysis.improvedDeveloper || '',
-        improvedBeginner: analysis.improvedBeginner || '',
+        tips: tips,
+        improved: impDefault,
+        improvedDeveloper: impDev,
+        improvedBeginner: impBeg,
         // Legacy compat
-        verdict: analysis.label || analysis.verdict || '',
+        label: analysis.category || analysis.label || analysis.verdict || '',
+        verdict: analysis.category || analysis.label || analysis.verdict || '',
         weaknesses: analysis.missing || analysis.weaknesses || [],
-        improved_prompt: analysis.improved || analysis.improved_prompt || '',
+        improved_prompt: impDefault,
         created_at: new Date().toISOString()
     };
     
@@ -81,7 +98,7 @@ function clearHistory() {
 
 function getStats() {
     const prompts = readJSON(DB_PATH);
-    if (prompts.length === 0) return { totalAnalyzed: 0, averageScore: 0, bestScore: 0, trend: 'neutral' };
+    if (prompts.length === 0) return { totalAnalyzed: 0, averageScore: 0, bestScore: 0, trend: 'neutral', scoreHistory: [] };
 
     const scores = prompts.map(p => p.score);
     const total = prompts.length;
@@ -100,11 +117,19 @@ function getStats() {
         else if (recentAvg < olderAvg - 0.5) trend = 'declining';
     }
 
+    // Score history for line chart (chronological, up to last 20)
+    const scoreHistory = prompts.slice(0, 20).reverse().map(p => ({
+        score: p.score,
+        date: p.created_at,
+        label: p.category || p.label || p.verdict || ''
+    }));
+
     return {
         totalAnalyzed: total,
         averageScore: Math.round(avgScore * 10) / 10,
         bestScore: bestScore,
-        trend
+        trend,
+        scoreHistory
     };
 }
 

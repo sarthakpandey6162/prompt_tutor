@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
     <title>Prompt Tutor</title>
     <link rel="icon" href="logo.png" type="image/png">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="app">
@@ -37,6 +37,11 @@
             </button>
         </nav>
         <div class="sb-bottom">
+            <!-- Dark Mode Toggle -->
+            <button class="sb-link" id="themeToggle">
+                <svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <span id="themeLabel">Dark Mode</span>
+            </button>
             <button class="sb-link" id="settingsNav">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 <span>Settings</span>
@@ -84,27 +89,33 @@
                                 <p class="pg-sub">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
                             </div>
                         </div>
-                        <div class="tpl-scroll">
-                            <div class="tpl-row">
-                                <button class="tpl" data-tpl="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason, and a professional closing.">
+                        <!-- Load Example Dropdown (replaces 5 template buttons) -->
+                        <div class="example-dropdown-wrap" id="exampleDropdownWrap">
+                            <button class="btn btn-ghost btn-sm example-trigger" id="exampleTrigger">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Load Example
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div class="example-menu" id="exampleMenu">
+                                <button class="example-item" data-tpl="Write a professional email to my manager requesting time off next Friday. Include a subject line, greeting, reason, and a professional closing.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                    Formal Email
+                                    <div><strong>Formal Email</strong><span>Professional email with subject & closing</span></div>
                                 </button>
-                                <button class="tpl" data-tpl="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
+                                <button class="example-item" data-tpl="Write a Python function that takes a list of integers and returns the two numbers that add up to a given target. Handle edge cases like empty lists and no valid pairs.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                                    Code Logic
+                                    <div><strong>Code Logic</strong><span>Python function with edge case handling</span></div>
                                 </button>
-                                <button class="tpl" data-tpl="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
+                                <button class="example-item" data-tpl="Explain the core concepts of quantum computing to a high school student. Use simple analogies, avoid jargon, and include 3 real-world applications.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                                    Tutor
+                                    <div><strong>Tutor</strong><span>Explain complex topics with analogies</span></div>
                                 </button>
-                                <button class="tpl" data-tpl="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
+                                <button class="example-item" data-tpl="Summarize the following article in 3 bullet points. Focus on the key argument, supporting evidence, and conclusion. Keep it under 100 words total.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
-                                    Summarize
+                                    <div><strong>Summarize</strong><span>Concise bullet-point summaries</span></div>
                                 </button>
-                                <button class="tpl" data-tpl="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
+                                <button class="example-item" data-tpl="Brainstorm 10 creative startup ideas that combine AI and sustainability. For each idea, give a one-sentence description and target audience.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469c-.936 0-1.835.372-2.49 1.07l-.548-.547z"/></svg>
-                                    Brainstorm
+                                    <div><strong>Brainstorm</strong><span>Creative ideation with structure</span></div>
                                 </button>
                             </div>
                         </div>
@@ -150,24 +161,58 @@
 
                 <!-- Results Column -->
                 <div class="craft-col craft-results" id="resultsCol">
-                    <!-- Empty -->
+                    <!-- Empty State — Lightning bolt -->
                     <div class="empty-state" id="emptyState">
                         <div class="empty-glow">
                             <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
-                                <circle cx="36" cy="36" r="30" stroke="#C7D2FE" stroke-width="2" stroke-dasharray="6 4"/>
-                                <path d="M36 20L39 30H49L41 37L44 47L36 41L28 47L31 37L23 30H33L36 20Z" fill="#A5B4FC" fill-opacity="0.3" stroke="#818CF8" stroke-width="1.5"/>
-                                <circle cx="36" cy="36" r="4" fill="#4F46E5" fill-opacity="0.2"/>
+                                <circle cx="36" cy="36" r="30" stroke="#C7D2FE" stroke-width="2" opacity="0.5"/>
+                                <circle cx="36" cy="36" r="22" stroke="#A5B4FC" stroke-width="1.5" opacity="0.3"/>
+                                <polygon points="40 16 24 40 34 40 32 56 48 32 38 32 40 16" fill="#4F46E5" fill-opacity="0.15" stroke="#4F46E5" stroke-width="2" stroke-linejoin="round"/>
                             </svg>
                         </div>
-                        <h3>Ready to analyze</h3>
-                        <p>Paste your prompt and click Analyze to get instant feedback</p>
+                        <h3>Your analysis will appear here</h3>
+                        <p>Write or paste a prompt on the left, then hit <strong>Analyze Prompt</strong> to get your score, feedback, and an improved rewrite.</p>
                     </div>
 
-                    <!-- Loading -->
+                    <!-- Loading Skeleton -->
                     <div class="loading-state" id="loadingState" style="display:none">
-                        <div class="skel-bar"></div>
-                        <div class="skel-bar short"></div>
-                        <div class="skel-bar shorter"></div>
+                        <div class="skel-card">
+                            <div class="skel-row">
+                                <div class="skel-circle"></div>
+                                <div class="skel-lines">
+                                    <div class="skel-bar w60"></div>
+                                    <div class="skel-bar w40"></div>
+                                    <div class="skel-pills">
+                                        <div class="skel-pill"></div>
+                                        <div class="skel-pill"></div>
+                                        <div class="skel-pill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="skel-card-pair">
+                            <div class="skel-card-half">
+                                <div class="skel-bar w50"></div>
+                                <div class="skel-bar w80"></div>
+                                <div class="skel-bar w70"></div>
+                            </div>
+                            <div class="skel-card-half">
+                                <div class="skel-bar w50"></div>
+                                <div class="skel-bar w80"></div>
+                                <div class="skel-bar w70"></div>
+                            </div>
+                        </div>
+                        <div class="skel-card">
+                            <div class="skel-bar w30"></div>
+                            <div class="skel-bar w90"></div>
+                            <div class="skel-bar w90"></div>
+                        </div>
+                        <div class="skel-card">
+                            <div class="skel-bar w40"></div>
+                            <div class="skel-bar w100"></div>
+                            <div class="skel-bar w100"></div>
+                            <div class="skel-bar w80"></div>
+                        </div>
                         <div class="loading-spinner"></div>
                         <p class="loading-text">Analyzing your prompt…</p>
                     </div>
@@ -213,7 +258,7 @@
                             <div id="tipsList" class="tips-acc"></div>
                         </div>
 
-                        <!-- Improved -->
+                        <!-- Improved prompt -->
                         <div class="improved-card">
                             <div class="improved-head">
                                 <h4 class="sec-title">
@@ -221,6 +266,10 @@
                                     Improved Prompt
                                 </h4>
                                 <div class="imp-actions">
+                                    <button class="btn btn-ghost btn-sm" id="diffToggle" title="Show Diff">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 12h14"/><path d="M8 6l-3 3 3 3"/><path d="M16 12l3 3-3 3"/></svg>
+                                        Diff
+                                    </button>
                                     <button class="btn btn-outline btn-sm" id="useBtn">⚡ Use in Editor</button>
                                     <button class="btn btn-ghost btn-sm" id="copyBtn">📋 <span id="copyTxt">Copy</span></button>
                                 </div>
@@ -232,6 +281,7 @@
                             </div>
                             <div class="imp-body">
                                 <pre class="imp-text" id="impText"></pre>
+                                <div class="diff-view" id="diffView" style="display:none"></div>
                             </div>
                         </div>
                     </div>
@@ -249,6 +299,11 @@
                             <p class="pg-sub">Your previously analyzed prompts</p>
                         </div>
                         <div class="lib-actions">
+                            <!-- Search Bar -->
+                            <div class="lib-search-wrap">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="libSearch" class="lib-search" placeholder="Search prompts…">
+                            </div>
                             <div class="filter-grp">
                                 <button class="filt active" data-f="all">All</button>
                                 <button class="filt" data-f="high">High Quality</button>
@@ -284,6 +339,41 @@
                         <h3 class="chart-h">Score Distribution</h3>
                         <div id="barChart" class="bar-chart"></div>
                     </div>
+
+                    <!-- Score Improvement Line Chart -->
+                    <div class="chart-card">
+                        <div class="chart-hd">
+                            <h3 class="chart-h">Score Improvement</h3>
+                            <span class="chart-sub" id="trendLabel"></span>
+                        </div>
+                        <div class="line-chart-wrap">
+                            <svg id="lineChart" class="line-chart" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+                            <div class="lc-yaxis">
+                                <span>10</span><span>8</span><span>6</span><span>4</span><span>2</span><span>0</span>
+                            </div>
+                        </div>
+                        <div class="lc-xaxis" id="lineXAxis"></div>
+                    </div>
+
+                    <!-- Element Usage — Placeholder -->
+                    <div class="chart-card">
+                        <h3 class="chart-h">Element Usage</h3>
+                        <div class="chart-placeholder">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                            <p>Element usage analytics will be available here once you've analyzed more prompts. Keep crafting!</p>
+                        </div>
+                    </div>
+
+                    <!-- Improvement Streak — Placeholder -->
+                    <div class="chart-card">
+                        <h3 class="chart-h">Improvement Streak</h3>
+                        <div class="chart-placeholder">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                            <p>Track your consecutive score improvements here. Analyze multiple prompts to start building your streak!</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Trend Dots -->
                     <div class="chart-card">
                         <h3 class="chart-h">Recent Trend</h3>
                         <div id="dotTimeline" class="dot-tl"></div>

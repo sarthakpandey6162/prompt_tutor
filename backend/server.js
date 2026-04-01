@@ -104,11 +104,12 @@ Use this history to:
 - Give personalized advice based on their patterns`;
     }
 
-    const systemPrompt = `You are an expert prompt engineering coach. Analyze the user's prompt and return ONLY a raw JSON object — no markdown, no backticks, no explanation. Use this exact structure:
+    const systemPrompt = `You are an expert prompt engineering coach. Analyze the user's prompt and return ONLY a raw JSON object — no markdown, no backticks, no explanation. Use this EXACT structure:
 
 {
   "score": <integer 1-10>,
-  "label": "<Needs Major Work | Good Foundation | Strong Prompt | Professional-Grade>",
+  "category": "<Needs Major Work | Good Foundation | Strong Prompt | Professional-Grade>",
+  "scoreLabel": "<short 2-3 word verdict>",
   "tone": "<Formal | Casual | Technical | Creative | Analytical | Directive>",
   "elements": {
     "role": <true|false>,
@@ -119,16 +120,18 @@ Use this history to:
   },
   "strengths": ["max 2 items, specific to this prompt"],
   "missing": ["max 2 items, specific to this prompt"],
-  "tips": [
-    { "title": "short title", "body": "2 sentence explanation" },
-    { "title": "short title", "body": "2 sentence explanation" }
+  "proTips": [
+    { "title": "short title", "description": "2 sentence explanation" },
+    { "title": "short title", "description": "2 sentence explanation" }
   ],
-  "improved": "rewritten version of the exact user prompt",
-  "improvedDeveloper": "technical/developer optimized version",
-  "improvedBeginner": "simplified beginner-friendly version"
+  "improved": {
+    "default": "rewritten version of the exact user prompt",
+    "developer": "technical/developer optimized version",
+    "beginner": "simplified beginner-friendly version"
+  }
 }
 
-Label guide:
+Category guide:
 - 1-3: "Needs Major Work"
 - 4-6: "Good Foundation"
 - 7-8: "Strong Prompt"
@@ -177,12 +180,24 @@ All improved variants MUST be rewrites of the actual user prompt. Never return g
             }
             analysis = JSON.parse(cleanText);
         } catch (e) {
-            console.error('Parse error:', e, 'Raw:', text);
-            return res.status(500).json({ error: 'Unexpected AI response format. Please try again.' });
+            console.error('JSON parse error:', e.message, '\nRaw response:', text.substring(0, 500));
+            return res.status(500).json({ 
+                error: 'The AI returned an invalid response. This can happen occasionally — please try again.',
+                parseError: true 
+            });
         }
 
-        if (!analysis.score || !analysis.strengths || !analysis.improved) {
+        if (!analysis.score || !analysis.strengths) {
             return res.status(500).json({ error: 'Incomplete analysis received. Please try again.' });
+        }
+
+        // Normalize: support both old string format and new object format for improved
+        if (typeof analysis.improved === 'string') {
+            analysis.improved = {
+                default: analysis.improved,
+                developer: analysis.improvedDeveloper || analysis.improved,
+                beginner: analysis.improvedBeginner || analysis.improved
+            };
         }
 
         // Save to database
