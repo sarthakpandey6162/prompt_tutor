@@ -1,6 +1,6 @@
 /**
  * Prompt Tutor — Linear-style Frontend
- * All 4 pages, loading/skeleton state, mobile bottom tab bar sync
+ * All 4 pages, loading/skeleton state
  * Dark mode, diff view, search, example dropdown, score improvement chart
  */
 
@@ -54,7 +54,6 @@ class App {
         this.$ = {
             sidebar: document.getElementById('sidebar'),
             sbLinks: document.querySelectorAll('.sb-link[data-view]'),
-            btmTabs: document.querySelectorAll('.btm-tab[data-view]'),
             views: document.querySelectorAll('.view'),
             badge: document.getElementById('libBadge'),
             input: document.getElementById('promptInput'),
@@ -149,11 +148,8 @@ class App {
     bind() {
         // Desktop nav
         this.$.sbLinks.forEach(n => n.addEventListener('click', () => this.go(n.dataset.view)));
-        // Mobile bottom tabs
-        this.$.btmTabs.forEach(t => t.addEventListener('click', () => this.go(t.dataset.view)));
         // Settings nav
         document.getElementById('settingsNav')?.addEventListener('click', () => this.openModal());
-        document.getElementById('btmSettings')?.addEventListener('click', () => this.openModal());
         // Input
         this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.$.analyzeBtn.disabled = !this.$.input.value.trim(); this.saveDraft(); });
         this.$.input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this.$.analyzeBtn.disabled) { e.preventDefault(); this.analyze(); } });
@@ -234,7 +230,7 @@ class App {
 
     /* ===== Dark Mode ===== */
     loadTheme() {
-        const saved = localStorage.getItem('pt_theme') || 'light';
+        const saved = localStorage.getItem('pt_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', saved);
         this.updateThemeUI(saved);
     }
@@ -391,8 +387,6 @@ class App {
         
         // Sync sidebar
         this.$.sbLinks.forEach(n => n.classList.toggle('active', n.dataset.view === view));
-        // Sync bottom tabs
-        this.$.btmTabs.forEach(t => t.classList.toggle('active', t.dataset.view === view));
         // Show view
         this.$.views.forEach(v => { v.classList.toggle('active', v.id === `view-${actualView}`); });
         
