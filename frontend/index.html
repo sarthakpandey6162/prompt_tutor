@@ -48,6 +48,10 @@
                 <span>Library</span>
                 <span class="sb-badge" id="libBadge" style="display:none">0</span>
             </button>
+            <button class="sb-link" data-view="saved">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                <span>Saved Prompts</span>
+            </button>
             <button class="sb-link" data-view="stats">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                 <span>Stats</span>
@@ -80,6 +84,10 @@
         <button class="btm-tab" data-view="library">
             <span class="btm-dot"></span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </button>
+        <button class="btm-tab" data-view="saved">
+            <span class="btm-dot"></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </button>
         <button class="btm-tab" data-view="stats">
             <span class="btm-dot"></span>
@@ -140,6 +148,13 @@
                                 </button>
                             </div>
                         </div>
+                        <div class="quick-builder" id="quickBuilder">
+                            <span class="qb-label">Quick Build:</span>
+                            <button class="qb-chip" data-insert="Act as a [role]. ">+ Role</button>
+                            <button class="qb-chip" data-insert="Output format: [table/json/bullets]. ">+ Format</button>
+                            <button class="qb-chip" data-insert="Constraints: [word limit, tone, do/don't]. ">+ Constraints</button>
+                            <button class="qb-chip" data-insert="Context: [audience, goal, background]. ">+ Context</button>
+                        </div>
                         <div class="textarea-grow">
                             <textarea id="promptInput" placeholder="Type or paste your prompt here…" spellcheck="false"></textarea>
                         </div>
@@ -163,6 +178,7 @@
                                     <span>~<b id="tc">0</b> tokens</span>
                                 </div>
                                 <div class="actions">
+                                    <span class="shortcut-inline">Ctrl/Cmd + Enter</span>
                                     <button class="btn btn-ghost" id="clearBtn">Clear</button>
                                     <button class="btn btn-primary" id="analyzeBtn" disabled>
                                         <span id="analyzeTxt">Analyze Prompt</span>
@@ -293,12 +309,21 @@
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 <input type="text" id="libSearch" class="lib-search" placeholder="Search prompts…">
                             </div>
-                            <div class="filter-grp">
+                            <div class="filter-grp" id="libFilters">
                                 <button class="filt active" data-f="all">All</button>
                                 <button class="filt" data-f="high">High Quality</button>
                                 <button class="filt" data-f="mid">Needs Work</button>
                                 <button class="filt" data-f="low">Weak</button>
                             </div>
+                            <select id="libSort" class="lib-sort" aria-label="Sort prompts">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="score_high">Highest Score</option>
+                                <option value="score_low">Lowest Score</option>
+                            </select>
+                            <button class="btn btn-ghost btn-sm" id="exportBtn">Export JSON</button>
+                            <button class="btn btn-ghost btn-sm" id="importBtn">Import JSON</button>
+                            <input type="file" id="importInput" accept="application/json" hidden>
                             <button class="btn btn-danger btn-sm" id="clearAllBtn" style="display:none">Clear All</button>
                         </div>
                     </div>
@@ -324,30 +349,32 @@
                         <div class="stat-card sc-green"><div class="sc-num" id="sBest">0</div><div class="sc-lbl">Best Score</div><div class="sc-sub">out of 10</div></div>
                         <div class="stat-card sc-blue"><div class="sc-num" id="sWeek">0</div><div class="sc-lbl">This Week</div></div>
                     </div>
-                    <div class="chart-card">
-                        <h3 class="chart-h">Score Distribution</h3>
-                        <div id="barChart" class="bar-chart"></div>
+                    <div class="chart-hd">
+                        <h3 class="chart-h">Score Trend</h3>
+                        <span class="chart-sub flat" id="trendLabel">-- Stable</span>
+                    </div>
+                    <p class="chart-desc">Recent analyses over time</p>
+                    <div class="line-chart-wrap" id="lineChartWrap">
+                        <canvas id="lineChart" class="line-chart-canvas"></canvas>
                     </div>
 
-                    <!-- Score Improvement Line Chart -->
-                    <div class="chart-card">
-                        <div class="chart-hd">
-                            <h3 class="chart-h">Score Improvement</h3>
-                            <span class="chart-sub" id="trendLabel"></span>
-                        </div>
-                        <div class="line-chart-wrap">
-                            <svg id="lineChart" class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
-                            <div class="lc-yaxis">
-                                <span>10</span><span>8</span><span>6</span><span>4</span><span>2</span><span>0</span>
+                    <!-- Layout for Split Charts below Line Chart -->
+                    <div class="chart-row">
+                        <!-- Score Distribution -->
+                        <div class="chart-card fb-card-half">
+                            <h3 class="chart-h">Score Distribution</h3>
+                            <div class="chart-canvas-wrap">
+                                <canvas id="barChart"></canvas>
                             </div>
                         </div>
-                        <div class="lc-xaxis" id="lineXAxis"></div>
-                    </div>
 
-                    <!-- Recent Trend Dots -->
-                    <div class="chart-card">
-                        <h3 class="chart-h">Recent Trend</h3>
-                        <div id="dotTimeline" class="dot-tl"></div>
+                        <!-- Element Usage Radar Chart -->
+                        <div class="chart-card fb-card-half radar-card">
+                            <h3 class="chart-h">Prompt Elements</h3>
+                            <div class="chart-canvas-wrap radar-wrap">
+                                <canvas id="radarChart"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -390,6 +417,27 @@
     </div>
 </div>
 
+<button class="tour-fab" id="tourFab" type="button" aria-label="Open quick tour">?</button>
+
+<div class="tour-wrap" id="tourWrap" aria-hidden="true">
+    <div class="tour-overlay" id="tourOverlay"></div>
+    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <div class="tour-top">
+            <span class="tour-step" id="tourStep">Step 1/4</span>
+            <button class="tour-x" id="tourClose" aria-label="Close tour">×</button>
+        </div>
+        <h3 class="tour-title" id="tourTitle">Welcome to Prompt Tutor</h3>
+        <p class="tour-desc" id="tourDesc"></p>
+        <div class="tour-dots" id="tourDots"></div>
+        <div class="tour-actions">
+            <button class="btn btn-ghost btn-sm" id="tourSkip">Skip</button>
+            <button class="btn btn-ghost btn-sm" id="tourPrev">Back</button>
+            <button class="btn btn-primary btn-sm" id="tourNext">Next</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

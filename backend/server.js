@@ -15,7 +15,9 @@ const {
     clearHistory,
     getStats,
     getSetting,
-    setSetting
+    setSetting,
+    toggleSave,
+    importHistory
 } = require('./database');
 
 const app = express();
@@ -24,7 +26,7 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ===== Middleware =====
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
@@ -56,6 +58,10 @@ app.post('/api/analyze', async (req, res) => {
 
     if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    if (prompt.trim().length > 8000) {
+        return res.status(400).json({ error: 'Prompt too long. Keep it under 8000 characters.' });
     }
 
     const cleanPrompt = prompt.trim();
@@ -188,11 +194,29 @@ app.get('/api/history', (req, res) => {
     res.json(history);
 });
 
+// --- Import History ---
+app.post('/api/history/import', (req, res) => {
+    const { prompts, mode } = req.body || {};
+    if (!Array.isArray(prompts) || prompts.length === 0) {
+        return res.status(400).json({ error: 'prompts array is required' });
+    }
+
+    const imported = importHistory(prompts, mode === 'replace' ? 'replace' : 'merge');
+    res.json({ success: true, imported });
+});
+
 // --- Get Single History Item ---
 app.get('/api/history/:id', (req, res) => {
     const item = getHistoryById(parseInt(req.params.id));
     if (!item) return res.status(404).json({ error: 'Not found' });
     res.json(item);
+});
+
+// --- Toggle Save Prompts ---
+app.patch('/api/history/:id/save', (req, res) => {
+    const isSaved = toggleSave(parseInt(req.params.id));
+    if (isSaved === null) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true, isSaved });
 });
 
 // --- Delete History Item ---
@@ -213,17 +237,25 @@ app.get('/api/stats', (req, res) => {
     res.json(stats);
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({ ok: true });
+});
+
 // --- Fallback: serve index.html for SPA ---
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
 });
 
+module.exports = app;
+
 // ===== Start Server =====
-app.listen(PORT, () => {
-    console.log(`
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`
 ╔══════════════════════════════════════╗
 ║   🚀 AI Prompt Tutor Server         ║
 ║   Running on http://localhost:${PORT}   ║
 ╚══════════════════════════════════════╝
     `);
-});
+    });
+}

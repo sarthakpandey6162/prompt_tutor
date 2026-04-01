@@ -30,6 +30,17 @@ function initDatabase() {
     console.log('✅ JSON Database initialized');
 }
 
+function detectPromptElements(text) {
+    const t = String(text || '');
+    return {
+        role: /act as|you are a?|persona|pretend|role|as a|expert|assistant|developer|scientist|writer|teacher|coach/i.test(t),
+        format: /json|markdown|table|csv|format|output|structure|bullet|list|code block|email|report|essay|html|xml/i.test(t),
+        constraints: /limit|max|must|exactly|no more|at least|words|under|avoid|don't|do not|never|only|restrict|constraint/i.test(t),
+        examples: /example|sample|for instance|input:|output:|e\.g\.|demonstrate|like this|such as/i.test(t),
+        context: /context|background|situation|scenario|given that|assuming|based on|the goal|objective|purpose|audience/i.test(t)
+    };
+}
+
 // ===== Prompt Operations =====
 
 function saveAnalysis(promptText, analysis) {
@@ -50,6 +61,10 @@ function saveAnalysis(promptText, analysis) {
     // Normalize tips: support both proTips (new) and tips (old)
     const tips = analysis.proTips || analysis.tips || [];
 
+    const inferredElements = analysis.elements && Object.values(analysis.elements).some(Boolean)
+        ? analysis.elements
+        : detectPromptElements(promptText);
+
     const newEntry = {
         id: Date.now(),
         prompt_text: promptText,
@@ -57,18 +72,13 @@ function saveAnalysis(promptText, analysis) {
         category: analysis.category || analysis.label || analysis.verdict || '',
         scoreLabel: analysis.scoreLabel || analysis.label || '',
         tone: analysis.tone || '',
-        elements: analysis.elements || {},
+        elements: inferredElements,
         strengths: analysis.strengths || [],
         missing: analysis.missing || analysis.weaknesses || [],
         tips: tips,
         improved: impDefault,
         improvedDeveloper: impDev,
         improvedBeginner: impBeg,
-        // Legacy compat
-        label: analysis.category || analysis.label || analysis.verdict || '',
-        verdict: analysis.category || analysis.label || analysis.verdict || '',
-        weaknesses: analysis.missing || analysis.weaknesses || [],
-        improved_prompt: impDefault,
         created_at: new Date().toISOString()
     };
     
@@ -94,6 +104,57 @@ function deleteHistoryItem(id) {
 
 function clearHistory() {
     writeJSON(DB_PATH, []);
+}
+
+function importHistory(entries, mode = 'merge') {
+    const incoming = Array.isArray(entries) ? entries : [];
+    if (!incoming.length) return 0;
+
+    const existing = mode === 'replace' ? [] : readJSON(DB_PATH);
+    const seen = new Set(existing.map(p => `${p.prompt_text}::${p.created_at}`));
+    let imported = 0;
+
+    incoming.forEach((raw) => {
+        if (!raw || typeof raw !== 'object') return;
+        const promptText = String(raw.prompt_text || '').trim();
+        if (!promptText) return;
+
+        const createdAt = raw.created_at || new Date().toISOString();
+        const key = `${promptText}::${createdAt}`;
+        if (seen.has(key)) return;
+
+        const cleanScore = parseFloat(String(raw.score).split('/')[0]);
+        const score = Number.isFinite(cleanScore) ? Math.max(0, Math.min(10, cleanScore)) : 0;
+
+        const normalizedElements = raw.elements && Object.values(raw.elements).some(Boolean)
+            ? raw.elements
+            : detectPromptElements(promptText);
+
+        existing.push({
+            id: Number(raw.id) || Date.now() + imported,
+            prompt_text: promptText,
+            score,
+            category: raw.category || raw.label || raw.verdict || '',
+            scoreLabel: raw.scoreLabel || raw.label || '',
+            tone: raw.tone || '',
+            elements: normalizedElements,
+            strengths: Array.isArray(raw.strengths) ? raw.strengths : [],
+            missing: Array.isArray(raw.missing) ? raw.missing : (Array.isArray(raw.weaknesses) ? raw.weaknesses : []),
+            tips: Array.isArray(raw.tips) ? raw.tips : (Array.isArray(raw.proTips) ? raw.proTips : []),
+            improved: raw.improved || raw.improved_prompt || '',
+            improvedDeveloper: raw.improvedDeveloper || raw.improved || raw.improved_prompt || '',
+            improvedBeginner: raw.improvedBeginner || raw.improved || raw.improved_prompt || '',
+            isSaved: !!raw.isSaved,
+            created_at: createdAt
+        });
+
+        seen.add(key);
+        imported += 1;
+    });
+
+    existing.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    writeJSON(DB_PATH, existing);
+    return imported;
 }
 
 function getStats() {
@@ -131,12 +192,26 @@ function getStats() {
         label: p.category || p.label || p.verdict || ''
     }));
 
+    // Element Usage for Radar Chart
+    const elementUsage = { role: 0, format: 0, constraints: 0, examples: 0, context: 0 };
+    parsedPrompts.forEach(p => {
+        const el = p.elements && Object.values(p.elements).some(Boolean)
+            ? p.elements
+            : detectPromptElements(p.prompt_text);
+        if (el.role) elementUsage.role++;
+        if (el.format) elementUsage.format++;
+        if (el.constraints) elementUsage.constraints++;
+        if (el.examples) elementUsage.examples++;
+        if (el.context) elementUsage.context++;
+    });
+
     return {
         totalAnalyzed: total,
         averageScore: Math.round(avgScore * 10) / 10,
         bestScore: bestScore,
         trend,
-        scoreHistory
+        scoreHistory,
+        elementUsage
     };
 }
 
@@ -168,6 +243,17 @@ function findAnalysisByPrompt(promptText) {
     return prompts.find(p => p.prompt_text === promptText) || null;
 }
 
+function toggleSave(id) {
+    const prompts = readJSON(DB_PATH);
+    const item = prompts.find(p => p.id === id);
+    if (item) {
+        item.isSaved = !item.isSaved;
+        writeJSON(DB_PATH, prompts);
+        return item.isSaved;
+    }
+    return null;
+}
+
 module.exports = {
     initDatabase,
     saveAnalysis,
@@ -179,5 +265,7 @@ module.exports = {
     getStats,
     getRecentContext,
     getSetting,
-    setSetting
+    setSetting,
+    toggleSave,
+    importHistory
 };

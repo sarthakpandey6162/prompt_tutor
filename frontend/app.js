@@ -12,8 +12,17 @@ class App {
         this.variant = 'default';
         this.filter = 'all';
         this.searchQuery = '';
+        this.sortMode = 'newest';
         this.history = [];
         this.showDiff = false;
+        this.cachedKeyStatus = null;
+        this.loadingPhrases = [
+            'Analyzing structure...',
+            'Checking clarity and constraints...',
+            'Generating improved versions...'
+        ];
+        this.loadingTick = null;
+        this.charts = { line: null, bar: null, radar: null };
         this.cache();
         this.bind();
         // Spotlight effect (Optimized with rAF)
@@ -71,10 +80,16 @@ class App {
             // Example dropdown
             exampleTrigger: document.getElementById('exampleTrigger'),
             exampleMenu: document.getElementById('exampleMenu'),
+            quickChips: document.querySelectorAll('.qb-chip'),
+            loadingText: document.querySelector('.loading-text'),
             // Library
             libGrid: document.getElementById('libGrid'),
             libEmpty: document.getElementById('libEmpty'),
             libSearch: document.getElementById('libSearch'),
+            libSort: document.getElementById('libSort'),
+            exportBtn: document.getElementById('exportBtn'),
+            importBtn: document.getElementById('importBtn'),
+            importInput: document.getElementById('importInput'),
             clearAllBtn: document.getElementById('clearAllBtn'),
             filters: document.querySelectorAll('.filt'),
             // Stats
@@ -83,10 +98,10 @@ class App {
             sBest: document.getElementById('sBest'),
             sWeek: document.getElementById('sWeek'),
             barChart: document.getElementById('barChart'),
+            lineChartWrap: document.getElementById('lineChartWrap'),
             lineChart: document.getElementById('lineChart'),
-            lineXAxis: document.getElementById('lineXAxis'),
             trendLabel: document.getElementById('trendLabel'),
-            dotTimeline: document.getElementById('dotTimeline'),
+            radarChart: document.getElementById('radarChart'),
             // Modal
             modal: document.getElementById('modal'),
             modalOverlay: document.getElementById('modalOverlay'),
@@ -102,6 +117,18 @@ class App {
             themeLabel: document.getElementById('themeLabel'),
             // Toast
             toastStack: document.getElementById('toastStack'),
+            // Tour
+            tourFab: document.getElementById('tourFab'),
+            tourWrap: document.getElementById('tourWrap'),
+            tourOverlay: document.getElementById('tourOverlay'),
+            tourClose: document.getElementById('tourClose'),
+            tourTitle: document.getElementById('tourTitle'),
+            tourDesc: document.getElementById('tourDesc'),
+            tourStep: document.getElementById('tourStep'),
+            tourPrev: document.getElementById('tourPrev'),
+            tourNext: document.getElementById('tourNext'),
+            tourSkip: document.getElementById('tourSkip'),
+            tourDots: document.getElementById('tourDots'),
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -118,6 +145,12 @@ class App {
         // Input
         this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.$.analyzeBtn.disabled = !this.$.input.value.trim(); this.saveDraft(); });
         this.$.input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this.$.analyzeBtn.disabled) { e.preventDefault(); this.analyze(); } });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement !== this.$.input && !this.$.modal.classList.contains('open') && !this.$.tourWrap.classList.contains('open')) {
+                e.preventDefault();
+                this.$.input.focus();
+            }
+        });
         // Example dropdown
         this.$.exampleTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -135,6 +168,9 @@ class App {
                 this.$.exampleMenu.classList.remove('open');
             });
         });
+        this.$.quickChips.forEach(chip => {
+            chip.addEventListener('click', () => this.insertTemplate(chip.dataset.insert || ''));
+        });
         // Actions
         this.$.clearBtn.addEventListener('click', () => this.clear());
         this.$.analyzeBtn.addEventListener('click', () => this.analyze());
@@ -149,6 +185,10 @@ class App {
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
         this.$.libSearch.addEventListener('input', () => { this.searchQuery = this.$.libSearch.value.trim().toLowerCase(); this.renderLib(); });
+        this.$.libSort?.addEventListener('change', () => { this.sortMode = this.$.libSort.value; this.renderLib(); });
+        this.$.exportBtn?.addEventListener('click', () => this.exportHistory());
+        this.$.importBtn?.addEventListener('click', () => this.$.importInput?.click());
+        this.$.importInput?.addEventListener('change', (e) => this.importHistoryFile(e));
         // Modal
         this.$.modalOverlay.addEventListener('click', () => this.closeModal());
         this.$.modalX.addEventListener('click', () => this.closeModal());
@@ -160,6 +200,14 @@ class App {
         });
         // Theme toggle
         this.$.themeToggle.addEventListener('click', () => this.toggleTheme());
+
+        // Tour
+        this.$.tourFab?.addEventListener('click', () => this.openTour(true));
+        this.$.tourOverlay?.addEventListener('click', () => this.closeTour());
+        this.$.tourClose?.addEventListener('click', () => this.closeTour());
+        this.$.tourSkip?.addEventListener('click', () => this.closeTour(true));
+        this.$.tourPrev?.addEventListener('click', () => this.nextTour(-1));
+        this.$.tourNext?.addEventListener('click', () => this.nextTour(1));
     }
 
     async init() {
@@ -168,6 +216,7 @@ class App {
         this.loadBadge();
         this.loadDraft();
         this.buildCheatSheet();
+        this.openTour(false);
     }
 
     /* ===== Dark Mode ===== */
@@ -183,6 +232,9 @@ class App {
         document.documentElement.setAttribute('data-theme', next);
         localStorage.setItem('pt_theme', next);
         this.updateThemeUI(next);
+        if (document.getElementById('view-stats')?.classList.contains('active')) {
+            this.loadStats();
+        }
     }
 
     updateThemeUI(theme) {
@@ -197,14 +249,25 @@ class App {
 
     /* ===== Navigation ===== */
     go(view) {
+        let actualView = view === 'saved' ? 'library' : view;
+        
         // Sync sidebar
         this.$.sbLinks.forEach(n => n.classList.toggle('active', n.dataset.view === view));
         // Sync bottom tabs
         this.$.btmTabs.forEach(t => t.classList.toggle('active', t.dataset.view === view));
         // Show view
-        this.$.views.forEach(v => { v.classList.toggle('active', v.id === `view-${view}`); });
-        if (view === 'library') this.loadLib();
-        if (view === 'stats') this.loadStats();
+        this.$.views.forEach(v => { v.classList.toggle('active', v.id === `view-${actualView}`); });
+        
+        if (actualView === 'library') {
+            const fGrp = document.getElementById('libFilters');
+            if(fGrp) {
+                fGrp.style.display = view === 'saved' ? 'none' : 'flex';
+                this.filter = view === 'saved' ? 'saved' : 'all';
+                fGrp.querySelectorAll('.filt').forEach(f => f.classList.toggle('active', f.dataset.f === this.filter));
+            }
+            this.loadLib();
+        }
+        if (actualView === 'stats') this.loadStats();
     }
 
     /* ===== API Key ===== */
@@ -213,10 +276,12 @@ class App {
 
     async checkKey() {
         try {
-            const r = await fetch(`${this.API}/settings/apikey/status`);
+            const r = await this.apiFetch(['/settings/apikey/status', '/check-api-key']);
             const d = await r.json();
-            this.$.apiDot.classList.toggle('on', d.configured);
-            if (!d.configured) setTimeout(() => this.openModal(), 1000);
+            const configured = !!(d.configured || d.hasKey);
+            this.cachedKeyStatus = configured;
+            this.$.apiDot.classList.toggle('on', configured);
+            if (!configured) setTimeout(() => this.openModal(), 1000);
         } catch (e) {}
     }
 
@@ -225,7 +290,11 @@ class App {
         if (!k) return;
         this.$.saveKeyBtn.textContent = 'Saving…';
         try {
-            const r = await fetch(`${this.API}/settings/apikey`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({apiKey:k}) });
+            const r = await this.apiFetch(['/settings/apikey', '/set-api-key'], {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({apiKey:k})
+            });
             if (r.ok) {
                 this.$.apiKeyInput.value = '';
                 this.checkKey();
@@ -241,16 +310,10 @@ class App {
     /* ===== Live Detection ===== */
     detect() {
         const t = this.$.input.value;
-        const checks = {
-            role: /act as|you are a?|persona|pretend|role|as a|expert|assistant|developer|scientist|writer|teacher|coach/i,
-            format: /json|markdown|table|csv|format|output|structure|bullet|list|code block|email|report|essay|html|xml/i,
-            constraints: /limit|max|must|exactly|no more|at least|words|under|avoid|don't|do not|never|only|restrict|constraint/i,
-            examples: /example|sample|for instance|input:|output:|e\.g\.|demonstrate|like this|such as/i,
-            context: /context|background|situation|scenario|given that|assuming|based on|the goal|objective|purpose|audience/i,
-        };
-        Object.entries(checks).forEach(([k, rx]) => {
+        const elements = this.detectElementsFromText(t);
+        Object.entries(elements).forEach(([k, on]) => {
             const p = this.pills[k];
-            if (rx.test(t)) { p.classList.remove('missing'); p.classList.add('detected'); }
+            if (on) { p.classList.remove('missing'); p.classList.add('detected'); }
             else { p.classList.remove('detected'); p.classList.add('missing'); }
         });
         let tone = 'Neutral';
@@ -274,6 +337,10 @@ class App {
     async analyze() {
         const prompt = this.$.input.value.trim();
         if (!prompt) return;
+        if (prompt.length > 8000) {
+            this.showErr('Prompt is too long. Please keep it under 8000 characters.');
+            return;
+        }
         this.originalPrompt = prompt;
         this.setLoading(true);
         // Clear previous state explicitly
@@ -288,7 +355,7 @@ class App {
             const r = await fetch(`${this.API}/analyze`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({prompt}) });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
-            this.analysis = this.normalizeAnalysis(d.analysis);
+            this.analysis = this.normalizeAnalysis(d.analysis || d, prompt);
             this.variant = 'default';
             this.showDiff = false;
             this.$.diffToggle.classList.remove('active');
@@ -300,7 +367,7 @@ class App {
     }
 
     /* Normalize analysis to handle both old and new schema */
-    normalizeAnalysis(a) {
+    normalizeAnalysis(a, promptText = '') {
         // Handle improved as object or string
         let improved = '', improvedDev = '', improvedBeg = '';
         if (typeof a.improved === 'object' && a.improved !== null) {
@@ -322,12 +389,17 @@ class App {
             };
         });
 
+        const fallbackElements = this.detectElementsFromText(promptText || this.$.input.value || '');
+        const normalizedElements = a.elements && Object.values(a.elements).some(Boolean)
+            ? a.elements
+            : fallbackElements;
+
         return {
             score: a.score || 0,
             category: a.category || a.label || a.verdict || '',
             scoreLabel: a.scoreLabel || a.label || '',
             tone: a.tone || '—',
-            elements: a.elements || {},
+            elements: normalizedElements,
             strengths: a.strengths || [],
             missing: a.missing || a.weaknesses || [],
             tips,
@@ -489,11 +561,16 @@ class App {
     copyImproved() {
         const t = this.$.impText.textContent;
         if (!t) return;
-        navigator.clipboard.writeText(t).then(() => {
+        const finalize = () => {
             this.$.copyTxt.textContent = 'Copied!';
             this.toast('Copied to clipboard', 'ok');
             setTimeout(() => this.$.copyTxt.textContent = 'Copy', 2000);
-        });
+        };
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(t).then(finalize).catch(() => this.fallbackCopy(t, finalize));
+            return;
+        }
+        this.fallbackCopy(t, finalize);
     }
 
     clear() {
@@ -533,8 +610,9 @@ class App {
     renderLib() {
         let items = [...this.history];
 
-        // Filter by score
-        if (this.filter === 'high') items = items.filter(i => i.score >= 7);
+        // Filter by score / saved
+        if (this.filter === 'saved') items = items.filter(i => i.isSaved);
+        else if (this.filter === 'high') items = items.filter(i => i.score >= 7);
         else if (this.filter === 'mid') items = items.filter(i => i.score >= 4 && i.score < 7);
         else if (this.filter === 'low') items = items.filter(i => i.score < 4);
 
@@ -542,6 +620,12 @@ class App {
         if (this.searchQuery) {
             items = items.filter(i => i.prompt_text.toLowerCase().includes(this.searchQuery));
         }
+
+        // Sort
+        if (this.sortMode === 'oldest') items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        else if (this.sortMode === 'score_high') items.sort((a, b) => (parseFloat(String(b.score).split('/')[0]) || 0) - (parseFloat(String(a.score).split('/')[0]) || 0));
+        else if (this.sortMode === 'score_low') items.sort((a, b) => (parseFloat(String(a.score).split('/')[0]) || 0) - (parseFloat(String(b.score).split('/')[0]) || 0));
+        else items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         this.$.clearAllBtn.style.display = this.history.length > 0 ? 'inline-flex' : 'none';
 
@@ -553,13 +637,23 @@ class App {
             const catBadge = i.tone || i.category || 'Neutral';
             const d = new Date(i.created_at);
             const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
-            return `<div class="lib-card" onclick="app.viewItem(${i.id})">
+            const isSaved = i.isSaved;
+            const saveIcon = isSaved ? 
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' :
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+
+            return `<div class="lib-card ${isSaved ? 'is-saved' : ''}" onclick="app.viewItem(${i.id})">
                 <div class="lc-top">
                     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
                         <span class="lc-score ${gradClass}">${cleanScore}/10</span>
                         <span class="lc-cat-badge">${this.esc(catBadge)}</span>
                     </div>
-                    <span class="lc-date">${ds}</span>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                        <span class="lc-date">${ds}</span>
+                        <button class="lc-save ${isSaved ? 'active' : ''}" onclick="event.stopPropagation();app.toggleSave(${i.id})" title="${isSaved ? 'Unsave' : 'Save'} Prompt">
+                            ${saveIcon}
+                        </button>
+                    </div>
                 </div>
                 <div class="lc-text">${this.esc(i.prompt_text)}</div>
                 <div class="lc-foot">
@@ -582,7 +676,7 @@ class App {
             this.originalPrompt = d.prompt_text;
             this.$.analyzeBtn.disabled = false;
             this.detect(); this.counts();
-            this.analysis = this.normalizeAnalysis(d);
+            this.analysis = this.normalizeAnalysis(d, d.prompt_text || '');
             this.showDiff = false;
             this.$.diffToggle.classList.remove('active');
             this.render(this.analysis);
@@ -595,11 +689,84 @@ class App {
         this.toast('Deleted');
     }
 
+    async toggleSave(id) {
+        try {
+            const r = await this.apiFetch([`/history/${id}/save`], { method: 'PATCH' });
+            if (r.ok) {
+                const res = await r.json();
+                // Update local model
+                const item = this.history.find(i => i.id === id);
+                if (item) item.isSaved = res.isSaved;
+                // Re-render
+                this.renderLib();
+                this.toast(res.isSaved ? 'Prompt Saved' : 'Prompt Removed', 'ok');
+            }
+        } catch (e) {
+            this.toast('Failed to save', 'err');
+        }
+    }
+
     async clearAll() {
         if (!confirm('Clear all history?')) return;
         await fetch(`${this.API}/history`, {method:'DELETE'});
         this.loadLib(); this.loadBadge();
         this.toast('History cleared');
+    }
+
+    exportHistory() {
+        if (!this.history.length) {
+            this.toast('No history to export');
+            return;
+        }
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            count: this.history.length,
+            prompts: this.history
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `prompt-tutor-history-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        this.toast('History exported', 'ok');
+    }
+
+    async importHistoryFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const prompts = Array.isArray(parsed) ? parsed : parsed.prompts;
+
+            if (!Array.isArray(prompts) || prompts.length === 0) {
+                throw new Error('Invalid file. Expected a JSON array or { prompts: [] }.');
+            }
+
+            const r = await this.apiFetch(['/history/import'], {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ prompts, mode: 'merge' })
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'Import failed');
+
+            this.toast(`Imported ${d.imported || 0} prompts`, 'ok');
+            this.$.importInput.value = '';
+            await this.loadLib();
+            await this.loadBadge();
+            if (document.getElementById('view-stats')?.classList.contains('active')) {
+                await this.loadStats();
+            }
+        } catch (err) {
+            this.toast(err.message || 'Import failed', 'err');
+            this.$.importInput.value = '';
+        }
     }
 
     /* ===== Stats ===== */
@@ -621,119 +788,208 @@ class App {
             const weak = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc < 4; }).length;
             const mid = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc >= 4 && sc < 7; }).length;
             const high = hist.filter(h => { const sc = parseFloat(String(h.score).split('/')[0]) || 0; return sc >= 7; }).length;
-
-            this.$.barChart.innerHTML = [
-                {lbl:'Weak (1-3)', count: weak, grad:'linear-gradient(135deg, #ef4444, #f87171)', pct: Math.round(weak/total*100)},
-                {lbl:'Needs Work (4-6)', count: mid, grad:'linear-gradient(135deg, #f97316, #fbbf24)', pct: Math.round(mid/total*100)},
-                {lbl:'High (7-10)', count: high, grad:'linear-gradient(135deg, #059669, #34d399)', pct: Math.round(high/total*100)},
-            ].map(b => `<div class="bar-row">
-                <span class="bar-lbl">${b.lbl}</span>
-                <div class="bar-track"><div class="bar-fill" style="width:${b.pct}%;background:${b.grad}"></div></div>
-                <span class="bar-val">${b.count} (${b.pct}%)</span>
-            </div>`).join('');
+            this.renderDistributionChart({ weak, mid, high, total });
 
             // === Score Improvement Line Chart ===
             this.renderLineChart(stats.scoreHistory || []);
 
             // === Trend label ===
             const tl = this.$.trendLabel;
-            if (stats.trend === 'improving') { tl.textContent = '↑ Improving'; tl.className = 'chart-sub up'; }
-            else if (stats.trend === 'declining') { tl.textContent = '↓ Declining'; tl.className = 'chart-sub down'; }
-            else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
+            if (tl) {
+                if (stats.trend === 'improving') { tl.textContent = '↑ Improving'; tl.className = 'chart-sub up'; }
+                else if (stats.trend === 'declining') { tl.textContent = '↓ Declining'; tl.className = 'chart-sub down'; }
+                else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
+            }
 
-            // === Recent Trend Dots ===
-            const last5 = hist.slice(0, 5).reverse();
-            if (last5.length) {
-                const lineW = (last5.length - 1) * 52;
-                this.$.dotTimeline.innerHTML = `<div class="dt-line" style="width:${lineW}px"></div>` +
-                    last5.map((h,i) => {
-                        const sc = parseFloat(String(h.score).split('/')[0]) || 0;
-                        const c = this.sColor(sc);
-                        const d = new Date(h.created_at);
-                        const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
-                        return `<div class="dt-item" style="animation-delay:${i*0.1}s">
-                            <div class="dt-dot" style="background:${c};border-color:var(--card)"></div>
-                            <span class="dt-score">${sc}/10</span>
-                            <span class="dt-date">${ds}</span>
-                        </div>`;
-                    }).join('');
+            // === Element Usage Radar Chart ===
+            if (stats.elementUsage) {
+                this.renderRadarChart(stats.elementUsage);
             } else {
-                this.$.dotTimeline.innerHTML = '<span style="color:var(--tx3);font-size:13px;padding:20px">No data yet</span>';
+                this.destroyChart('radar');
             }
         } catch (e) {}
     }
 
     renderLineChart(scoreHistory) {
-        const container = this.$.lineChart;
-        container.innerHTML = '';
-
+        if (!window.Chart || !this.$.lineChart) return;
         if (!scoreHistory || scoreHistory.length < 2) {
-            container.innerHTML = '<text x="300" y="100" text-anchor="middle" fill="var(--tx3)" font-size="13" font-family="var(--ff)">Analyze at least 2 prompts to see your trend</text>';
-            this.$.lineXAxis.innerHTML = '';
+            this.destroyChart('line');
             return;
         }
-
-        const W = 600, H = 220;
-        const padX = 20, padY = 15;
-        const plotW = W - padX * 2;
-        const plotH = H - padY * 2;
-        const n = scoreHistory.length;
-
-        // Build SVG content as a single string
-        let svgContent = `<defs>
-            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#818CF8" stop-opacity="0.35"/>
-                <stop offset="100%" stop-color="#818CF8" stop-opacity="0.02"/>
-            </linearGradient>
-        </defs>`;
-
-        // Dashed grid lines
-        for (let i = 0; i <= 5; i++) {
-            const y = padY + (i / 5) * plotH;
-            svgContent += `<line class="lc-grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
-        }
-
-        // Compute points
-        const points = scoreHistory.map((d, i) => {
-            const x = padX + (i / (n - 1)) * plotW;
-            const y = padY + (1 - d.score / 10) * plotH;
-            return { x, y, score: d.score, date: d.date };
-        });
-
-        // Smooth bezier curve helper
-        const smoothLine = (pts) => {
-            if (pts.length < 2) return '';
-            let path = `M${pts[0].x},${pts[0].y}`;
-            for (let i = 0; i < pts.length - 1; i++) {
-                const curr = pts[i];
-                const next = pts[i + 1];
-                const cpx = (curr.x + next.x) / 2;
-                path += ` C${cpx},${curr.y} ${cpx},${next.y} ${next.x},${next.y}`;
-            }
-            return path;
-        };
-
-        // Area (with smooth curve)
-        const curvePath = smoothLine(points);
-        const areaPath = curvePath + ` L${points[n-1].x},${H - padY} L${points[0].x},${H - padY} Z`;
-        svgContent += `<path class="lc-area" d="${areaPath}"/>`;
-
-        // Line (smooth curve)
-        svgContent += `<path class="lc-line" d="${curvePath}"/>`;
-
-        // Dots with score-based colors and staggered animation
-        points.forEach((p, i) => {
-            const dotColor = p.score >= 7 ? '#059669' : p.score >= 4 ? '#d97706' : '#dc2626';
-            svgContent += `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="5" stroke="${dotColor}" style="animation-delay:${0.8 + i * 0.08}s"/>`;
-        });
-
-        container.innerHTML = svgContent;
-
-        // X-axis labels
-        this.$.lineXAxis.innerHTML = scoreHistory.map(d => {
+        this.destroyChart('line');
+        const ctx = this.$.lineChart.getContext('2d');
+        const labels = scoreHistory.map(d => {
             const dt = new Date(d.date);
-            return `<span>${!isNaN(dt) ? dt.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''}</span>`;
-        }).join('');
+            return !isNaN(dt) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+        });
+        const data = scoreHistory.map(d => Number(d.score) || 0);
+
+        const grad = ctx.createLinearGradient(0, 0, 0, 260);
+        grad.addColorStop(0, 'rgba(129, 140, 248, 0.38)');
+        grad.addColorStop(1, 'rgba(129, 140, 248, 0.02)');
+
+        this.charts.line = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Score',
+                    data,
+                    borderColor: this.css('--accent'),
+                    backgroundColor: grad,
+                    fill: true,
+                    tension: 0.38,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: this.css('--card-solid'),
+                    pointBorderColor: this.css('--accent'),
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 700, easing: 'easeOutQuart' },
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 10,
+                        ticks: { color: this.css('--tx3'), stepSize: 2 },
+                        grid: { color: this.css('--border-lt') }
+                    },
+                    x: {
+                        ticks: { color: this.css('--tx3') },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: this.css('--card-solid'),
+                        titleColor: this.css('--tx'),
+                        bodyColor: this.css('--tx2'),
+                        borderColor: this.css('--border'),
+                        borderWidth: 1,
+                        displayColors: false,
+                        callbacks: {
+                            label: (ctx2) => `Score: ${ctx2.parsed.y}/10`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    renderRadarChart(usage) {
+        if (!window.Chart || !this.$.radarChart) return;
+        this.destroyChart('radar');
+        const ctx = this.$.radarChart.getContext('2d');
+        const labels = ['Role', 'Format', 'Constraints', 'Examples', 'Context'];
+        const values = [usage.role || 0, usage.format || 0, usage.constraints || 0, usage.examples || 0, usage.context || 0];
+
+        this.charts.radar = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    borderColor: this.css('--accent'),
+                    backgroundColor: 'rgba(129, 140, 248, 0.28)',
+                    pointBackgroundColor: this.css('--accent'),
+                    pointBorderColor: this.css('--card-solid'),
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 700, easing: 'easeOutQuart' },
+                plugins: { legend: { display: false } },
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        angleLines: { color: this.css('--border-lt') },
+                        grid: { color: this.css('--border-lt') },
+                        pointLabels: { color: this.css('--tx2'), font: { size: 11, weight: '600' } },
+                        ticks: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    renderDistributionChart({ weak, mid, high, total }) {
+        if (!window.Chart || !this.$.barChart) return;
+        this.destroyChart('bar');
+        const ctx = this.$.barChart.getContext('2d');
+
+        const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
+        const values = [weak, mid, high];
+
+        this.charts.bar = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Weak', 'Needs Work', 'High'],
+                datasets: [{
+                    data: values,
+                    backgroundColor: ['#ef4444', '#f59e0b', '#059669'],
+                    borderRadius: 10,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 700, easing: 'easeOutQuart' },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: this.css('--tx3'), precision: 0 },
+                        grid: { color: this.css('--border-lt') }
+                    },
+                    x: {
+                        ticks: { color: this.css('--tx2') },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: this.css('--card-solid'),
+                        titleColor: this.css('--tx'),
+                        bodyColor: this.css('--tx2'),
+                        borderColor: this.css('--border'),
+                        borderWidth: 1,
+                        callbacks: {
+                            label: (ctx2) => `${ctx2.raw} prompts (${pct(ctx2.raw)}%)`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    destroyChart(name) {
+        const chart = this.charts[name];
+        if (chart) {
+            chart.destroy();
+            this.charts[name] = null;
+        }
+    }
+
+    css(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#999';
+    }
+
+    detectElementsFromText(text) {
+        const t = String(text || '');
+        return {
+            role: /act as|you are a?|persona|pretend|role|as a|expert|assistant|developer|scientist|writer|teacher|coach/i.test(t),
+            format: /json|markdown|table|csv|format|output|structure|bullet|list|code block|email|report|essay|html|xml/i.test(t),
+            constraints: /limit|max|must|exactly|no more|at least|words|under|avoid|don't|do not|never|only|restrict|constraint/i.test(t),
+            examples: /example|sample|for instance|input:|output:|e\.g\.|demonstrate|like this|such as/i.test(t),
+            context: /context|background|situation|scenario|given that|assuming|based on|the goal|objective|purpose|audience/i.test(t)
+        };
     }
 
     /* ===== Cheat Sheet ===== */
@@ -835,6 +1091,38 @@ class App {
         this.$.analyzeTxt.style.display = on ? 'none' : 'inline';
         this.$.spinner.style.display = on ? 'inline-block' : 'none';
         if (on) this.$.errBar.style.display = 'none';
+
+        if (on && this.$.loadingText) {
+            let idx = 0;
+            this.$.loadingText.textContent = this.loadingPhrases[idx];
+            this.loadingTick = setInterval(() => {
+                idx = (idx + 1) % this.loadingPhrases.length;
+                this.$.loadingText.textContent = this.loadingPhrases[idx];
+            }, 1100);
+        } else if (!on && this.loadingTick) {
+            clearInterval(this.loadingTick);
+            this.loadingTick = null;
+            if (this.$.loadingText) this.$.loadingText.textContent = 'Analyzing your prompt...';
+        }
+    }
+
+    insertTemplate(text) {
+        if (!text) return;
+        const el = this.$.input;
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? el.value.length;
+        const before = el.value.slice(0, start);
+        const after = el.value.slice(end);
+        const prefix = before && !before.endsWith(' ') ? ' ' : '';
+        const nextValue = `${before}${prefix}${text}${after}`;
+        el.value = nextValue;
+        const cursor = (before + prefix + text).length;
+        el.setSelectionRange(cursor, cursor);
+        el.focus();
+        this.detect();
+        this.counts();
+        this.$.analyzeBtn.disabled = !el.value.trim();
+        this.saveDraft();
     }
 
     showErr(msg) {
@@ -872,6 +1160,101 @@ class App {
         const d = localStorage.getItem('pt_draft');
         if (d) { this.$.input.value = d; this.$.analyzeBtn.disabled = !d.trim(); this.detect(); this.counts(); }
     }
+
+    fallbackCopy(text, onDone) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            onDone();
+        } catch {
+            this.toast('Copy failed', 'err');
+        } finally {
+            ta.remove();
+        }
+    }
+
+    async apiFetch(paths, options = {}) {
+        const list = Array.isArray(paths) ? paths : [paths];
+        let lastError = null;
+        for (const p of list) {
+            try {
+                const r = await fetch(`${this.API}${p}`, options);
+                if (r.ok || r.status !== 404) return r;
+                lastError = new Error(`Endpoint not found: ${p}`);
+            } catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError || new Error('Request failed');
+    }
+
+    openTour(force) {
+        const seen = localStorage.getItem('pt_tour_seen') === '1';
+        if (seen && !force) return;
+
+        this.tourSteps = [
+            {
+                title: 'Start in Craft',
+                desc: 'Write your prompt, then use Ctrl/Cmd + Enter to analyze quickly.',
+                view: 'craft'
+            },
+            {
+                title: 'Use Smart Rewrites',
+                desc: 'Switch between Default, Developer, and Beginner variants, then inject back into editor with Use in Editor.',
+                view: 'craft'
+            },
+            {
+                title: 'Manage Your Library',
+                desc: 'Search, filter, sort, save favorites, and now import/export JSON backups.',
+                view: 'library'
+            },
+            {
+                title: 'Track Improvement',
+                desc: 'Watch your score trend, distribution, and prompt element usage in Stats.',
+                view: 'stats'
+            }
+        ];
+        this.tourIndex = 0;
+        this.renderTour();
+        this.$.tourWrap.classList.add('open');
+        this.$.tourWrap.setAttribute('aria-hidden', 'false');
+    }
+
+    nextTour(dir) {
+        if (!this.tourSteps?.length) return;
+        const next = this.tourIndex + dir;
+
+        if (next >= this.tourSteps.length) {
+            this.closeTour(true);
+            return;
+        }
+        this.tourIndex = Math.max(0, next);
+        this.renderTour();
+    }
+
+    renderTour() {
+        const step = this.tourSteps[this.tourIndex];
+        if (!step) return;
+
+        this.$.tourTitle.textContent = step.title;
+        this.$.tourDesc.textContent = step.desc;
+        this.$.tourStep.textContent = `Step ${this.tourIndex + 1}/${this.tourSteps.length}`;
+        this.$.tourPrev.disabled = this.tourIndex === 0;
+        this.$.tourNext.textContent = this.tourIndex === this.tourSteps.length - 1 ? 'Finish' : 'Next';
+        this.$.tourDots.innerHTML = this.tourSteps.map((_, i) => `<span class="tour-dot ${i === this.tourIndex ? 'active' : ''}"></span>`).join('');
+        this.go(step.view);
+    }
+
+    closeTour(markSeen = false) {
+        this.$.tourWrap.classList.remove('open');
+        this.$.tourWrap.setAttribute('aria-hidden', 'true');
+        if (markSeen) localStorage.setItem('pt_tour_seen', '1');
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () => { window.app = new App(); });
+document.addEventListener('DOMContentLoaded', () => { window.app = new App(); window.app.init(); });
