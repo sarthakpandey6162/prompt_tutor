@@ -161,7 +161,7 @@ function getStats() {
     const prompts = readJSON(DB_PATH);
     if (prompts.length === 0) return { totalAnalyzed: 0, averageScore: 0, bestScore: 0, trend: 'neutral', scoreHistory: [] };
 
-    // Clean scores from legacy formats like "8/18" and ensure stringified numbers are floats
+    // Clean scores from legacy string formats and ensure numeric parsing is safe
     const parsedPrompts = prompts.map(p => ({
         ...p,
         cleanScore: parseFloat(String(p.score).split('/')[0]) || 0,

@@ -34,6 +34,12 @@ class App {
             palette: null,
             reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches
         };
+        this.lessons = this.getLessons();
+        this.challenges = this.getChallenges();
+        this.lessonState = this.loadProgressState('pt_lessons_completed');
+        this.challengeState = this.loadProgressState('pt_challenges_completed');
+        this.activeLessonId = null;
+        this.activeChallengeId = null;
         this.cache();
         this.bind();
         // Spotlight effect (Optimized with rAF)
@@ -111,7 +117,16 @@ class App {
             lineChartWrap: document.getElementById('lineChartWrap'),
             lineChart: document.getElementById('lineChart'),
             trendLabel: document.getElementById('trendLabel'),
-            radarChart: document.getElementById('radarChart'),
+            elRole: document.getElementById('elRole'),
+            elFormat: document.getElementById('elFormat'),
+            elConstraints: document.getElementById('elConstraints'),
+            elExamples: document.getElementById('elExamples'),
+            elContext: document.getElementById('elContext'),
+            elRoleVal: document.getElementById('elRoleVal'),
+            elFormatVal: document.getElementById('elFormatVal'),
+            elConstraintsVal: document.getElementById('elConstraintsVal'),
+            elExamplesVal: document.getElementById('elExamplesVal'),
+            elContextVal: document.getElementById('elContextVal'),
             // Modal
             modal: document.getElementById('modal'),
             modalOverlay: document.getElementById('modalOverlay'),
@@ -140,6 +155,26 @@ class App {
             tourNext: document.getElementById('tourNext'),
             tourSkip: document.getElementById('tourSkip'),
             tourDots: document.getElementById('tourDots'),
+            // Lessons
+            lessonList: document.getElementById('lessonList'),
+            lessonDetail: document.getElementById('lessonDetail'),
+            lessonBack: document.getElementById('lessonBack'),
+            lessonTitle: document.getElementById('lessonTitle'),
+            lessonDesc: document.getElementById('lessonDesc'),
+            lessonContent: document.getElementById('lessonContent'),
+            lessonCompleteBtn: document.getElementById('lessonCompleteBtn'),
+            lessonProgress: document.getElementById('lessonProgress'),
+            // Challenges
+            challengeList: document.getElementById('challengeList'),
+            challengeDetail: document.getElementById('challengeDetail'),
+            challengeBack: document.getElementById('challengeBack'),
+            challengeTitle: document.getElementById('challengeTitle'),
+            challengeDesc: document.getElementById('challengeDesc'),
+            challengeInput: document.getElementById('challengeInput'),
+            challengeSubmit: document.getElementById('challengeSubmit'),
+            challengeResult: document.getElementById('challengeResult'),
+            challengeFeedback: document.getElementById('challengeFeedback'),
+            challengeProgress: document.getElementById('challengeProgress'),
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -216,6 +251,14 @@ class App {
         this.$.tourSkip?.addEventListener('click', () => this.closeTour(true));
         this.$.tourPrev?.addEventListener('click', () => this.nextTour(-1));
         this.$.tourNext?.addEventListener('click', () => this.nextTour(1));
+
+        // Lessons
+        this.$.lessonBack?.addEventListener('click', () => this.showLessonsList());
+        this.$.lessonCompleteBtn?.addEventListener('click', () => this.markLessonComplete());
+
+        // Challenges
+        this.$.challengeBack?.addEventListener('click', () => this.showChallengesList());
+        this.$.challengeSubmit?.addEventListener('click', () => this.submitChallenge());
     }
 
     async init() {
@@ -225,6 +268,8 @@ class App {
         this.loadBadge();
         this.loadDraft();
         this.buildCheatSheet();
+        this.renderLessonsList();
+        this.renderChallengesList();
         this.openTour(false);
     }
 
@@ -381,6 +426,70 @@ class App {
         }
     }
 
+    getLessons() {
+        return [
+            {
+                id: 'l1',
+                icon: '📘',
+                title: 'Prompt Basics',
+                summary: 'Understand what makes a good prompt and why it matters',
+                content: '<p>Strong prompts are specific, structured, and contextual.</p><ul><li><strong>Role:</strong> "Act as a hiring manager"</li><li><strong>Format:</strong> "Return as a table"</li><li><strong>Constraints:</strong> "Under 150 words"</li><li><strong>Examples:</strong> "Input: X -> Output: Y"</li><li><strong>Context:</strong> "Audience is beginners"</li></ul>'
+            },
+            {
+                id: 'l2',
+                icon: '🧠',
+                title: 'Role Assignment',
+                summary: 'Learn how assigning roles to AI dramatically improves output quality',
+                content: '<p><strong>Without role:</strong> "Write feedback for this resume."</p><p><strong>With role:</strong> "Act as a senior recruiter. Give concise resume feedback with hiring criteria."</p><p>The role narrows perspective and improves consistency.</p>'
+            },
+            {
+                id: 'l3',
+                icon: '🧪',
+                title: 'Few-Shot Prompting',
+                summary: 'Provide examples to guide AI output format and style',
+                content: '<p>Few-shot prompting gives examples before the task.</p><p><strong>Example:</strong><br>Input: "Refund request" -> Output: "Empathetic 3-line response"</p><p>Then provide your new input. The model mirrors style and structure better.</p>'
+            },
+            {
+                id: 'l4',
+                icon: '🪜',
+                title: 'Chain of Thought',
+                summary: 'Guide AI to think step-by-step for complex tasks',
+                content: '<p>For difficult reasoning tasks, use scaffolding language:</p><ul><li>"Think step by step"</li><li>"Explain assumptions first"</li><li>"Then provide final answer"</li></ul><p>This improves logic transparency and reduces mistakes.</p>'
+            },
+            {
+                id: 'l5',
+                icon: '📏',
+                title: 'Constraints & Format',
+                summary: 'Control AI output length, format and style',
+                content: '<p>Always add limits and target format:</p><ul><li>"Max 120 words"</li><li>"Return JSON with keys: summary, risks, next_steps"</li><li>"Use plain English for a 10-year-old"</li></ul><p>Constraints make responses usable immediately.</p>'
+            }
+        ];
+    }
+
+    getChallenges() {
+        return [
+            { id: 'c1', title: 'Email Composer', summary: 'Write a prompt that gets AI to write a professional email declining a meeting. Must score 7+ to pass.', pass: 7 },
+            { id: 'c2', title: 'Code Debugger', summary: 'Write a prompt asking AI to find and fix a bug in a specific code snippet. Must score 7+ to pass.', pass: 7 },
+            { id: 'c3', title: 'Data Analyst', summary: 'Write a prompt to analyze sales data and provide actionable insights. Must score 7+ to pass.', pass: 7 },
+            { id: 'c4', title: 'Teach Me', summary: 'Write a prompt explaining a complex topic to a 10-year-old. Must score 7+ to pass.', pass: 7 },
+            { id: 'c5', title: 'Creative Writer', summary: 'Write a prompt to generate a short story with specific requirements. Must score 7+ to pass.', pass: 7 }
+        ];
+    }
+
+    loadProgressState(key) {
+        try {
+            const raw = localStorage.getItem(key);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+
+    saveProgressState(key, state) {
+        localStorage.setItem(key, JSON.stringify(state || {}));
+    }
+
     /* ===== Navigation ===== */
     go(view) {
         let actualView = view === 'saved' ? 'library' : view;
@@ -400,6 +509,9 @@ class App {
             this.loadLib();
         }
         if (actualView === 'stats') this.loadStats();
+        if (actualView === 'lessons') this.renderLessonsList();
+        if (actualView === 'challenges') this.renderChallengesList();
+        if (actualView === 'cheatsheet') this.buildCheatSheet();
     }
 
     /* ===== API Key ===== */
@@ -526,8 +638,10 @@ class App {
             ? a.elements
             : fallbackElements;
 
+        const normalizedScore = parseFloat(String(a.score ?? 0).split('/')[0]) || 0;
+
         return {
-            score: a.score || 0,
+            score: Math.max(0, Math.min(10, normalizedScore)),
             category: a.category || a.label || a.verdict || '',
             scoreLabel: a.scoreLabel || a.label || '',
             tone: a.tone || '—',
@@ -933,12 +1047,7 @@ class App {
                 else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
             }
 
-            // === Element Usage Radar Chart ===
-            if (stats.elementUsage) {
-                this.renderRadarChart(stats.elementUsage);
-            } else {
-                this.destroyChart('radar');
-            }
+            this.renderElementUsageBars(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || hist.length || 0);
         } catch (e) {}
     }
 
@@ -950,9 +1059,18 @@ class App {
         }
         this.destroyChart('line');
         const ctx = this.$.lineChart.getContext('2d');
-        const labels = scoreHistory.map(d => {
-            const dt = new Date(d.date);
-            return !isNaN(dt) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+        const parsedDates = scoreHistory.map(d => new Date(d.date));
+        const validDates = parsedDates.filter(d => !isNaN(d));
+        const sameDay = validDates.length > 0 && validDates.every(d => {
+            const f = validDates[0];
+            return d.getFullYear() === f.getFullYear() && d.getMonth() === f.getMonth() && d.getDate() === f.getDate();
+        });
+        const labels = parsedDates.map(dt => {
+            if (isNaN(dt)) return '';
+            if (sameDay) {
+                return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+            return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         });
         const data = scoreHistory.map(d => Number(d.score) || 0);
 
@@ -1012,41 +1130,23 @@ class App {
         });
     }
 
-    renderRadarChart(usage) {
-        if (!window.Chart || !this.$.radarChart) return;
-        this.destroyChart('radar');
-        const ctx = this.$.radarChart.getContext('2d');
-        const labels = ['Role', 'Format', 'Constraints', 'Examples', 'Context'];
-        const values = [usage.role || 0, usage.format || 0, usage.constraints || 0, usage.examples || 0, usage.context || 0];
+    renderElementUsageBars(usage, total) {
+        const safeTotal = Number(total) > 0 ? Number(total) : 1;
+        const rows = [
+            ['role', this.$.elRole, this.$.elRoleVal],
+            ['format', this.$.elFormat, this.$.elFormatVal],
+            ['constraints', this.$.elConstraints, this.$.elConstraintsVal],
+            ['examples', this.$.elExamples, this.$.elExamplesVal],
+            ['context', this.$.elContext, this.$.elContextVal]
+        ];
 
-        this.charts.radar = new Chart(ctx, {
-            type: 'radar',
-            data: {
-                labels,
-                datasets: [{
-                    data: values,
-                    borderColor: this.css('--accent'),
-                    backgroundColor: 'rgba(129, 140, 248, 0.28)',
-                    pointBackgroundColor: this.css('--accent'),
-                    pointBorderColor: this.css('--card-solid'),
-                    pointBorderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 700, easing: 'easeOutQuart' },
-                plugins: { legend: { display: false } },
-                scales: {
-                    r: {
-                        beginAtZero: true,
-                        angleLines: { color: this.css('--border-lt') },
-                        grid: { color: this.css('--border-lt') },
-                        pointLabels: { color: this.css('--tx2'), font: { size: 11, weight: '600' } },
-                        ticks: { display: false }
-                    }
-                }
-            }
+        rows.forEach(([key, fill, val]) => {
+            if (!fill || !val) return;
+            const count = Number(usage[key] || 0);
+            const pct = Math.max(0, Math.min(100, Math.round((count / safeTotal) * 100)));
+            fill.style.width = `${pct}%`;
+            val.textContent = `${pct}%`;
+            fill.title = `${count}/${safeTotal}`;
         });
     }
 
@@ -1126,6 +1226,9 @@ class App {
 
     /* ===== Cheat Sheet ===== */
     buildCheatSheet() {
+        const list = document.getElementById('csList');
+        if (!list) return;
+
         const secs = [
             {
                 icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
@@ -1184,7 +1287,6 @@ class App {
             },
         ];
 
-        const list = document.getElementById('csList');
         list.innerHTML = secs.map(s => `
             <div class="cs-item">
                 <button class="cs-head">
@@ -1214,6 +1316,142 @@ class App {
                 });
             });
         });
+    }
+
+    renderLessonsList() {
+        if (!this.$.lessonList) return;
+        this.showLessonsList();
+        this.$.lessonList.innerHTML = this.lessons.map((l, idx) => {
+            const done = !!this.lessonState[l.id];
+            return `<button class="lesson-card ${done ? 'done' : ''}" data-id="${l.id}">
+                <span class="lesson-icon">${l.icon}</span>
+                <span class="lesson-meta"><strong>${this.esc(l.title)}</strong><span>${this.esc(l.summary)}</span></span>
+                <span class="lesson-tail">${done ? '✓' : '>'}</span>
+            </button>`;
+        }).join('');
+        this.$.lessonList.querySelectorAll('.lesson-card').forEach(btn => {
+            btn.addEventListener('click', () => this.openLesson(btn.dataset.id));
+        });
+        if (this.$.lessonProgress) {
+            const doneCount = Object.values(this.lessonState).filter(Boolean).length;
+            this.$.lessonProgress.textContent = `${doneCount}/${this.lessons.length} completed`;
+        }
+    }
+
+    showLessonsList() {
+        if (this.$.lessonList) this.$.lessonList.style.display = 'grid';
+        if (this.$.lessonDetail) this.$.lessonDetail.style.display = 'none';
+    }
+
+    openLesson(id) {
+        const lesson = this.lessons.find(l => l.id === id);
+        if (!lesson || !this.$.lessonDetail) return;
+        this.activeLessonId = lesson.id;
+        this.$.lessonTitle.textContent = lesson.title;
+        this.$.lessonDesc.textContent = lesson.summary;
+        this.$.lessonContent.innerHTML = lesson.content;
+        this.$.lessonList.style.display = 'none';
+        this.$.lessonDetail.style.display = 'block';
+        const done = !!this.lessonState[lesson.id];
+        this.$.lessonCompleteBtn.textContent = done ? 'Completed ✓' : 'Mark Complete ✓';
+        this.$.lessonCompleteBtn.disabled = done;
+    }
+
+    markLessonComplete() {
+        if (!this.activeLessonId) return;
+        this.lessonState[this.activeLessonId] = true;
+        this.saveProgressState('pt_lessons_completed', this.lessonState);
+        this.renderLessonsList();
+        this.openLesson(this.activeLessonId);
+        this.toast('Lesson marked complete', 'ok');
+    }
+
+    renderChallengesList() {
+        if (!this.$.challengeList) return;
+        this.showChallengesList();
+        this.$.challengeList.innerHTML = this.challenges.map((c, idx) => {
+            const done = !!this.challengeState[c.id];
+            return `<button class="challenge-card ${done ? 'done' : ''}" data-id="${c.id}">
+                <span class="challenge-badge">#${idx + 1}</span>
+                <span class="lesson-meta"><strong>${this.esc(c.title)}</strong><span>${this.esc(c.summary)}</span></span>
+                <span class="lesson-tail">${done ? '✓' : '>'}</span>
+            </button>`;
+        }).join('');
+        this.$.challengeList.querySelectorAll('.challenge-card').forEach(btn => {
+            btn.addEventListener('click', () => this.openChallenge(btn.dataset.id));
+        });
+        if (this.$.challengeProgress) {
+            const doneCount = Object.values(this.challengeState).filter(Boolean).length;
+            this.$.challengeProgress.textContent = `${doneCount}/${this.challenges.length} completed`;
+        }
+    }
+
+    showChallengesList() {
+        if (this.$.challengeList) this.$.challengeList.style.display = 'grid';
+        if (this.$.challengeDetail) this.$.challengeDetail.style.display = 'none';
+    }
+
+    openChallenge(id) {
+        const challenge = this.challenges.find(c => c.id === id);
+        if (!challenge || !this.$.challengeDetail) return;
+        this.activeChallengeId = challenge.id;
+        this.$.challengeTitle.textContent = challenge.title;
+        this.$.challengeDesc.textContent = challenge.summary;
+        this.$.challengeInput.value = localStorage.getItem(`pt_challenge_draft_${challenge.id}`) || '';
+        this.$.challengeResult.textContent = '';
+        this.$.challengeResult.className = 'challenge-result';
+        this.$.challengeFeedback.innerHTML = '';
+        this.$.challengeList.style.display = 'none';
+        this.$.challengeDetail.style.display = 'block';
+    }
+
+    async submitChallenge() {
+        const id = this.activeChallengeId;
+        const challenge = this.challenges.find(c => c.id === id);
+        if (!challenge) return;
+        const prompt = this.$.challengeInput.value.trim();
+        if (!prompt) {
+            this.$.challengeResult.className = 'challenge-result fail';
+            this.$.challengeResult.textContent = 'Please enter your prompt first.';
+            return;
+        }
+        localStorage.setItem(`pt_challenge_draft_${id}`, prompt);
+
+        this.$.challengeSubmit.disabled = true;
+        this.$.challengeSubmit.textContent = 'Analyzing...';
+        try {
+            const r = await fetch(`${this.API}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'Challenge failed');
+
+            const analysis = this.normalizeAnalysis(d.analysis || d, prompt);
+            const score = parseFloat(String(analysis.score).split('/')[0]) || 0;
+            const passed = score >= challenge.pass;
+
+            if (passed) {
+                this.challengeState[id] = true;
+                this.saveProgressState('pt_challenges_completed', this.challengeState);
+                this.$.challengeResult.className = 'challenge-result pass';
+                this.$.challengeResult.textContent = 'Challenge Passed! ✓';
+                this.$.challengeFeedback.innerHTML = '';
+            } else {
+                this.$.challengeResult.className = 'challenge-result fail';
+                this.$.challengeResult.textContent = `Score was ${score}/10. Need ${challenge.pass}+ to pass. Try again!`;
+                const feedback = [...(analysis.missing || []), ...(analysis.tips || []).map(t => t.title)].slice(0, 5);
+                this.$.challengeFeedback.innerHTML = feedback.map(f => `<li>${this.esc(typeof f === 'string' ? f : '')}</li>`).join('');
+            }
+            this.renderChallengesList();
+        } catch (err) {
+            this.$.challengeResult.className = 'challenge-result fail';
+            this.$.challengeResult.textContent = err.message || 'Challenge submission failed.';
+        } finally {
+            this.$.challengeSubmit.disabled = false;
+            this.$.challengeSubmit.textContent = 'Submit Challenge';
+        }
     }
 
     /* ===== Helpers ===== */
