@@ -33,7 +33,7 @@
 </svg>
 <div class="visual-stage" aria-hidden="true">
     <img src="bg-light-1.png" alt="" class="bg-image bg-light-only" id="bgImage">
-    <img src="bg-dark.png" alt="" class="bg-image bg-dark-only" id="bgImageDark">
+    <img src="bg-light-2.png" alt="" class="bg-image bg-dark-only" id="bgImageDark">
 </div>
 <div class="app">
     <!-- ===== SIDEBAR (desktop) ===== -->
@@ -165,18 +165,8 @@
                                     <span>~<b id="tc">0</b> tokens</span>
                                 </div>
                                 <div class="actions">
-                                    <select id="modelSelect" class="analyze-mode" aria-label="Model">
-                                        <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B</option>
-                                        <option value="llama3-70b-8192">Llama 3 70B</option>
-                                        <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                                    </select>
-                                    <select id="analyzeMode" class="analyze-mode" aria-label="Analysis mode">
-                                        <option value="quick">Quick</option>
-                                        <option value="balanced" selected>Balanced</option>
-                                        <option value="deep">Deep</option>
-                                    </select>
                                     <span class="budget-pill" id="budgetPill">Budget --/6000</span>
-                                    <span class="shortcut-inline">Ctrl/Cmd + Enter</span>
+                                    <span class="shortcut-inline">Ctrl + Enter</span>
                                     <button class="btn btn-ghost" id="clearBtn">Clear</button>
                                     <button class="btn btn-primary" id="analyzeBtn" disabled>
                                         <span id="analyzeTxt">Analyze Prompt</span>
@@ -301,11 +291,6 @@
                         <span class="chat-sub">Chat directly with the AI</span>
                     </div>
                     <div class="chat-actions">
-                        <select id="chatModelSelect" class="analyze-mode">
-                            <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B</option>
-                            <option value="llama3-70b-8192">Llama 3 70B</option>
-                            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                        </select>
                         <button class="btn btn-ghost btn-sm" id="chatClearBtn">Clear Chat</button>
                     </div>
                 </div>

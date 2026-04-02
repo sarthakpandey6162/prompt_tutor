@@ -13,7 +13,7 @@ class App {
         this.filter = 'all';
         this.searchQuery = '';
         this.sortMode = 'newest';
-        this.analysisMode = localStorage.getItem('pt_analysis_mode') || 'balanced';
+        this.analysisMode = 'balanced';
         this.tokenBudget = { limit: 6000, used: 0, remaining: 6000, resetsInMs: 0 };
         this.usagePoll = null;
         this.lastEstimate = 0;
@@ -49,7 +49,6 @@ class App {
             analyzeBtn: document.getElementById('analyzeBtn'),
             analyzeTxt: document.getElementById('analyzeTxt'),
             spinner: document.getElementById('spinner'),
-            analyzeMode: document.getElementById('analyzeMode'),
             budgetPill: document.getElementById('budgetPill'),
             errBar: document.getElementById('errBar'),
             errMsg: document.getElementById('errMsg'),
@@ -160,8 +159,7 @@ class App {
             chatInput: document.getElementById('chatInput'),
             chatSendBtn: document.getElementById('chatSendBtn'),
             chatClearBtn: document.getElementById('chatClearBtn'),
-            chatModelSelect: document.getElementById('chatModelSelect'),
-            modelSelect: document.getElementById('modelSelect')
+            chatModelSelect: document.getElementById('chatModelSelect')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -204,12 +202,6 @@ class App {
         // Actions
         this.$.clearBtn.addEventListener('click', () => this.clear());
         this.$.analyzeBtn.addEventListener('click', () => this.analyze());
-        this.$.analyzeMode?.addEventListener('change', () => {
-            this.analysisMode = this.$.analyzeMode.value;
-            localStorage.setItem('pt_analysis_mode', this.analysisMode);
-            this.counts();
-            this.updateAnalyzeButtonState();
-        });
         this.$.errX.addEventListener('click', () => this.$.errBar.style.display = 'none');
         this.$.useBtn.addEventListener('click', () => this.useImproved());
         this.$.copyBtn.addEventListener('click', () => this.copyImproved());
@@ -279,7 +271,6 @@ class App {
     async init() {
         this.loadTheme();
         this.loadWallpaper();
-        if (this.$.analyzeMode) this.$.analyzeMode.value = this.analysisMode;
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
@@ -626,7 +617,7 @@ class App {
         }
         const estimate = this.estimateTokensForPrompt(prompt, this.analysisMode);
         if ((this.tokenBudget?.remaining ?? 0) < estimate) {
-            this.showErr('Budget too low for this mode. Switch to Quick or wait ~1 minute.');
+            this.showErr('Budget too low right now. Please wait about 1 minute and try again.');
             return;
         }
 
@@ -642,11 +633,10 @@ class App {
         this.lastAnalyzeAt = now;
 
         try {
-            const modelVal = this.$.modelSelect ? this.$.modelSelect.value : null;
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ prompt, mode: this.analysisMode, model: modelVal })
+                body: JSON.stringify({ prompt })
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
@@ -660,7 +650,7 @@ class App {
             this.$.diffToggle.classList.remove('active');
             this.render(this.analysis);
             this.loadBadge();
-            this.toast(d.cached ? 'Loaded cached analysis' : `Analysis complete (${this.analysisMode})`, 'ok');
+            this.toast(d.cached ? 'Loaded cached analysis' : 'Analysis complete', 'ok');
         } catch (e) { this.showErr(e.message); this.$.loadingState.style.display = 'none'; this.$.emptyState.style.display = 'flex'; }
         finally {
             this.setLoading(false);
@@ -1687,23 +1677,23 @@ class App {
         const contentDiv = aiBubble.querySelector('.msg-content');
 
         const msgs = [];
-        // fetch existing history to build context, keeping it simple by reading DOM or just relying on what's fetched. Actually easier to just send DOM history
         Array.from(this.$.chatList.querySelectorAll('.chat-msg')).forEach(bubble => {
             const isUser = bubble.classList.contains('msg-user');
-            const txt = bubble.querySelector('.msg-content').innerText.replace('...', '').trim();
+            const contentNode = bubble.querySelector('.msg-content');
+            if (!contentNode || contentNode.querySelector('.typing-indicator')) return;
+            const txt = (contentNode.textContent || '').trim();
             if(txt) msgs.push({ role: isUser ? 'user' : 'assistant', content: txt });
         });
 
-        // Remove the empty AI message we just added
-        msgs.pop();
-
-        const modelVal = this.$.chatModelSelect ? this.$.chatModelSelect.value : null;
+        if (!msgs.length || msgs[msgs.length - 1].role !== 'user') {
+            msgs.push({ role: 'user', content: text });
+        }
 
         try {
             const resp = await fetch(`${this.API}/chat/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: msgs, model: modelVal })
+                body: JSON.stringify({ messages: msgs })
             });
 
             if (!resp.ok) {
