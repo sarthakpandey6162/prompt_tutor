@@ -7,7 +7,7 @@
     <title>Prompt Tutor</title>
     <link rel="icon" href="logo.png" type="image/png">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -25,9 +25,9 @@
             <stop offset="100%" stop-color="#dc2626" />
         </linearGradient>
         <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#4F46E5" />
-            <stop offset="50%" stop-color="#818CF8" />
-            <stop offset="100%" stop-color="#4F46E5" />
+            <stop offset="0%" stop-color="#0f766e" />
+            <stop offset="50%" stop-color="#2dd4bf" />
+            <stop offset="100%" stop-color="#0f766e" />
         </linearGradient>
     </defs>
 </svg>
@@ -166,6 +166,12 @@
                                     <span>~<b id="tc">0</b> tokens</span>
                                 </div>
                                 <div class="actions">
+                                    <select id="analyzeMode" class="analyze-mode" aria-label="Analysis mode">
+                                        <option value="quick">Quick</option>
+                                        <option value="balanced" selected>Balanced</option>
+                                        <option value="deep">Deep</option>
+                                    </select>
+                                    <span class="budget-pill" id="budgetPill">Budget --/6000</span>
                                     <span class="shortcut-inline">Ctrl/Cmd + Enter</span>
                                     <button class="btn btn-ghost" id="clearBtn">Clear</button>
                                     <button class="btn btn-primary" id="analyzeBtn" disabled>
@@ -303,12 +309,16 @@
                                 <button class="filt" data-f="mid">Needs Work</button>
                                 <button class="filt" data-f="low">Weak</button>
                             </div>
-                            <select id="libSort" class="lib-sort" aria-label="Sort prompts">
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="score_high">Highest Score</option>
-                                <option value="score_low">Lowest Score</option>
-                            </select>
+                            <div class="sort-shell">
+                                <span class="sort-label">Sort</span>
+                                <select id="libSort" class="lib-sort" aria-label="Sort prompts">
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                    <option value="score_high">Highest Score</option>
+                                    <option value="score_low">Lowest Score</option>
+                                </select>
+                                <svg class="sort-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                            </div>
                             <button class="btn btn-ghost btn-sm" id="exportBtn">Export JSON</button>
                             <button class="btn btn-ghost btn-sm" id="importBtn">Import JSON</button>
                             <input type="file" id="importInput" accept="application/json" hidden>

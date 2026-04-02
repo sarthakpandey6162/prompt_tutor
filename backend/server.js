@@ -23,6 +23,42 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const TOKEN_LIMIT_PER_MINUTE = 6000;
+const usageWindow = [];
+const MODE_PROFILES = {
+    quick: { maxTokens: 280, temperature: 0.45 },
+    balanced: { maxTokens: 520, temperature: 0.65 },
+    deep: { maxTokens: 760, temperature: 0.8 }
+};
+
+function pruneUsageWindow() {
+    const cutoff = Date.now() - 60_000;
+    while (usageWindow.length && usageWindow[0].ts < cutoff) usageWindow.shift();
+}
+
+function getCurrentUsage() {
+    pruneUsageWindow();
+    return usageWindow.reduce((sum, entry) => sum + (entry.tokens || 0), 0);
+}
+
+function getBudgetSnapshot(extraReserved = 0) {
+    const used = getCurrentUsage();
+    const remaining = Math.max(0, TOKEN_LIMIT_PER_MINUTE - used - extraReserved);
+    const oldest = usageWindow[0];
+    const resetsInMs = oldest ? Math.max(0, 60_000 - (Date.now() - oldest.ts)) : 0;
+    return { limit: TOKEN_LIMIT_PER_MINUTE, used, remaining, resetsInMs };
+}
+
+function estimateRequestTokens(prompt, modeProfile) {
+    const inputTokens = Math.ceil((String(prompt || '').length + 900) / 4);
+    return inputTokens + (modeProfile?.maxTokens || MODE_PROFILES.balanced.maxTokens);
+}
+
+function consumeTokens(tokens) {
+    const safe = Math.max(0, Math.round(Number(tokens) || 0));
+    usageWindow.push({ ts: Date.now(), tokens: safe });
+    pruneUsageWindow();
+}
 
 // ===== Middleware =====
 app.use(cors());
@@ -52,9 +88,13 @@ app.get('/api/settings/apikey/status', (req, res) => {
     res.json({ configured: !!key, hasKey: !!key });
 });
 
+app.get('/api/usage', (req, res) => {
+    res.json(getBudgetSnapshot());
+});
+
 // --- Analyze Prompt ---
 app.post('/api/analyze', async (req, res) => {
-    const { prompt } = req.body;
+    const { prompt, mode } = req.body;
 
     if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'Prompt is required' });
@@ -65,12 +105,29 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     const cleanPrompt = prompt.trim();
+    const selectedMode = MODE_PROFILES[mode] ? mode : 'balanced';
+    const profile = MODE_PROFILES[selectedMode];
+
+    const estimatedTokens = estimateRequestTokens(cleanPrompt, profile);
+    const budgetBefore = getBudgetSnapshot();
+    if (budgetBefore.remaining < estimatedTokens) {
+        return res.status(429).json({
+            error: 'Token budget low. Try Quick mode or wait for reset.',
+            budget: budgetBefore,
+            estimatedTokens,
+            mode: selectedMode
+        });
+    }
+
     const existing = findAnalysisByPrompt(cleanPrompt);
     if (existing) {
         return res.json({
             success: true,
             id: existing.id,
-            analysis: existing
+            analysis: existing,
+            cached: true,
+            mode: selectedMode,
+            budget: getBudgetSnapshot()
         });
     }
 
@@ -103,9 +160,9 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
             { role: "system", content: systemPrompt },
             { role: "user", content: `Analyze this prompt:\n"""${prompt.trim()}"""` }
         ],
-        temperature: 0.7,
+        temperature: profile.temperature,
         response_format: { type: "json_object" },
-        max_tokens: 600
+        max_tokens: profile.maxTokens
     };
 
     const fetchOptions = {
@@ -138,6 +195,9 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         }
 
         const data = await response.json();
+        const usageTokens = data?.usage?.total_tokens || estimatedTokens;
+        consumeTokens(usageTokens);
+
         const text = data.choices?.[0]?.message?.content;
 
         if (!text) {
@@ -178,7 +238,11 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         res.json({ 
             success: true, 
             id,
-            analysis 
+            analysis,
+            cached: false,
+            mode: selectedMode,
+            tokenUsage: usageTokens,
+            budget: getBudgetSnapshot()
         });
 
     } catch (error) {

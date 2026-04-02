@@ -13,6 +13,11 @@ class App {
         this.filter = 'all';
         this.searchQuery = '';
         this.sortMode = 'newest';
+        this.analysisMode = localStorage.getItem('pt_analysis_mode') || 'balanced';
+        this.tokenBudget = { limit: 6000, used: 0, remaining: 6000, resetsInMs: 0 };
+        this.usagePoll = null;
+        this.lastEstimate = 0;
+        this.lastAnalyzeAt = 0;
         this.history = [];
         this.showDiff = false;
         this.cachedKeyStatus = null;
@@ -67,6 +72,8 @@ class App {
             analyzeBtn: document.getElementById('analyzeBtn'),
             analyzeTxt: document.getElementById('analyzeTxt'),
             spinner: document.getElementById('spinner'),
+            analyzeMode: document.getElementById('analyzeMode'),
+            budgetPill: document.getElementById('budgetPill'),
             errBar: document.getElementById('errBar'),
             errMsg: document.getElementById('errMsg'),
             errX: document.getElementById('errX'),
@@ -186,7 +193,7 @@ class App {
         // Settings nav
         document.getElementById('settingsNav')?.addEventListener('click', () => this.openModal());
         // Input
-        this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.$.analyzeBtn.disabled = !this.$.input.value.trim(); this.saveDraft(); });
+        this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.updateAnalyzeButtonState(); this.saveDraft(); });
         this.$.input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this.$.analyzeBtn.disabled) { e.preventDefault(); this.analyze(); } });
         document.addEventListener('keydown', (e) => {
             if (e.key === '/' && document.activeElement !== this.$.input && !this.$.modal.classList.contains('open') && !this.$.tourWrap.classList.contains('open')) {
@@ -205,7 +212,7 @@ class App {
                 e.stopPropagation();
                 this.$.input.value = item.dataset.tpl;
                 this.detect(); this.counts();
-                this.$.analyzeBtn.disabled = false;
+                this.updateAnalyzeButtonState();
                 this.$.input.focus();
                 this.saveDraft();
                 this.$.exampleMenu.classList.remove('open');
@@ -217,6 +224,12 @@ class App {
         // Actions
         this.$.clearBtn.addEventListener('click', () => this.clear());
         this.$.analyzeBtn.addEventListener('click', () => this.analyze());
+        this.$.analyzeMode?.addEventListener('change', () => {
+            this.analysisMode = this.$.analyzeMode.value;
+            localStorage.setItem('pt_analysis_mode', this.analysisMode);
+            this.counts();
+            this.updateAnalyzeButtonState();
+        });
         this.$.errX.addEventListener('click', () => this.$.errBar.style.display = 'none');
         this.$.useBtn.addEventListener('click', () => this.useImproved());
         this.$.copyBtn.addEventListener('click', () => this.copyImproved());
@@ -263,10 +276,13 @@ class App {
 
     async init() {
         this.loadTheme();
+        if (this.$.analyzeMode) this.$.analyzeMode.value = this.analysisMode;
         this.initParticles();
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
+        await this.refreshUsageBudget();
+        this.usagePoll = setInterval(() => this.refreshUsageBudget(), 10_000);
         this.buildCheatSheet();
         this.renderLessonsList();
         this.renderChallengesList();
@@ -575,6 +591,41 @@ class App {
         this.$.wc.textContent = t.trim() ? t.trim().split(/\s+/).length : 0;
         this.$.cc.textContent = t.length;
         this.$.tc.textContent = Math.ceil(t.length / 4);
+        this.lastEstimate = this.estimateTokensForPrompt(t, this.analysisMode);
+        this.updateBudgetUI();
+    }
+
+    estimateTokensForPrompt(text, mode = 'balanced') {
+        const maxOut = mode === 'quick' ? 280 : mode === 'deep' ? 760 : 520;
+        const input = Math.ceil((String(text || '').length + 900) / 4);
+        return input + maxOut;
+    }
+
+    updateAnalyzeButtonState() {
+        const hasPrompt = !!this.$.input.value.trim();
+        const enoughBudget = (this.tokenBudget?.remaining ?? 0) >= this.lastEstimate;
+        this.$.analyzeBtn.disabled = !hasPrompt || !enoughBudget;
+    }
+
+    updateBudgetUI() {
+        if (!this.$.budgetPill) return;
+        const remaining = Math.max(0, Number(this.tokenBudget?.remaining || 0));
+        const limit = Math.max(1, Number(this.tokenBudget?.limit || 6000));
+        this.$.budgetPill.textContent = `Budget ${remaining}/${limit} · est ${this.lastEstimate}`;
+        this.$.budgetPill.classList.toggle('low', remaining < this.lastEstimate);
+    }
+
+    async refreshUsageBudget() {
+        try {
+            const r = await this.apiFetch(['/usage']);
+            if (!r.ok) return;
+            const d = await r.json();
+            if (d && typeof d.remaining === 'number') {
+                this.tokenBudget = d;
+                this.updateBudgetUI();
+                this.updateAnalyzeButtonState();
+            }
+        } catch (_) {}
     }
 
     /* ===== Analyze ===== */
@@ -585,6 +636,17 @@ class App {
             this.showErr('Prompt is too long. Please keep it under 8000 characters.');
             return;
         }
+        const now = Date.now();
+        if (now - this.lastAnalyzeAt < 1800) {
+            this.showErr('Please wait a second before running another analysis.');
+            return;
+        }
+        const estimate = this.estimateTokensForPrompt(prompt, this.analysisMode);
+        if ((this.tokenBudget?.remaining ?? 0) < estimate) {
+            this.showErr('Budget too low for this mode. Switch to Quick or wait ~1 minute.');
+            return;
+        }
+
         this.originalPrompt = prompt;
         this.setLoading(true);
         // Clear previous state explicitly
@@ -594,20 +656,33 @@ class App {
         this.$.emptyState.style.display = 'none';
         this.$.resultsContent.style.display = 'none';
         this.$.loadingState.style.display = 'flex';
+        this.lastAnalyzeAt = now;
 
         try {
-            const r = await fetch(`${this.API}/analyze`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({prompt}) });
+            const r = await fetch(`${this.API}/analyze`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ prompt, mode: this.analysisMode })
+            });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
+            if (d.budget) {
+                this.tokenBudget = d.budget;
+                this.updateBudgetUI();
+            }
             this.analysis = this.normalizeAnalysis(d.analysis || d, prompt);
             this.variant = 'default';
             this.showDiff = false;
             this.$.diffToggle.classList.remove('active');
             this.render(this.analysis);
             this.loadBadge();
-            this.toast('Analysis complete', 'ok');
+            this.toast(d.cached ? 'Loaded cached analysis' : `Analysis complete (${this.analysisMode})`, 'ok');
         } catch (e) { this.showErr(e.message); this.$.loadingState.style.display = 'none'; this.$.emptyState.style.display = 'flex'; }
-        finally { this.setLoading(false); }
+        finally {
+            this.setLoading(false);
+            this.updateAnalyzeButtonState();
+            this.refreshUsageBudget();
+        }
     }
 
     /* Normalize analysis to handle both old and new schema */
@@ -798,7 +873,7 @@ class App {
         if (!t) return;
         this.$.input.value = t;
         this.detect(); this.counts();
-        this.$.analyzeBtn.disabled = false;
+        this.updateAnalyzeButtonState();
         this.$.input.focus();
         this.saveDraft();
         this.toast('Loaded into editor', 'ok');
@@ -821,7 +896,6 @@ class App {
 
     clear() {
         this.$.input.value = '';
-        this.$.analyzeBtn.disabled = true;
         this.$.resultsContent.style.display = 'none';
         this.$.loadingState.style.display = 'none';
         this.$.emptyState.style.display = 'flex';
@@ -831,6 +905,7 @@ class App {
         this.showDiff = false;
         this.$.diffToggle.classList.remove('active');
         this.detect(); this.counts();
+        this.updateAnalyzeButtonState();
         this.$.input.focus();
         this.saveDraft();
     }
@@ -920,8 +995,8 @@ class App {
             this.go('craft');
             this.$.input.value = d.prompt_text;
             this.originalPrompt = d.prompt_text;
-            this.$.analyzeBtn.disabled = false;
             this.detect(); this.counts();
+            this.updateAnalyzeButtonState();
             this.analysis = this.normalizeAnalysis(d, d.prompt_text || '');
             this.showDiff = false;
             this.$.diffToggle.classList.remove('active');
@@ -1073,10 +1148,12 @@ class App {
             return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         });
         const data = scoreHistory.map(d => Number(d.score) || 0);
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const accent = this.css('--accent');
 
         const grad = ctx.createLinearGradient(0, 0, 0, 260);
-        grad.addColorStop(0, 'rgba(129, 140, 248, 0.38)');
-        grad.addColorStop(1, 'rgba(129, 140, 248, 0.02)');
+        grad.addColorStop(0, isDark ? 'rgba(34, 211, 238, 0.34)' : 'rgba(14, 165, 164, 0.28)');
+        grad.addColorStop(1, isDark ? 'rgba(34, 211, 238, 0.03)' : 'rgba(14, 165, 164, 0.02)');
 
         this.charts.line = new Chart(ctx, {
             type: 'line',
@@ -1085,14 +1162,16 @@ class App {
                 datasets: [{
                     label: 'Score',
                     data,
-                    borderColor: this.css('--accent'),
+                    borderColor: accent,
                     backgroundColor: grad,
                     fill: true,
-                    tension: 0.38,
-                    pointRadius: 4,
+                    tension: 0.42,
+                    cubicInterpolationMode: 'monotone',
+                    borderWidth: 3,
+                    pointRadius: 3,
                     pointHoverRadius: 6,
                     pointBackgroundColor: this.css('--card-solid'),
-                    pointBorderColor: this.css('--accent'),
+                    pointBorderColor: accent,
                     pointBorderWidth: 2
                 }]
             },
@@ -1104,11 +1183,11 @@ class App {
                     y: {
                         min: 0,
                         max: 10,
-                        ticks: { color: this.css('--tx3'), stepSize: 2 },
-                        grid: { color: this.css('--border-lt') }
+                        ticks: { color: this.css('--tx3'), stepSize: 2, padding: 8 },
+                        grid: { color: this.css('--border-lt'), drawBorder: false }
                     },
                     x: {
-                        ticks: { color: this.css('--tx3') },
+                        ticks: { color: this.css('--tx3'), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
                         grid: { display: false }
                     }
                 },
@@ -1120,6 +1199,8 @@ class App {
                         bodyColor: this.css('--tx2'),
                         borderColor: this.css('--border'),
                         borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 10,
                         displayColors: false,
                         callbacks: {
                             label: (ctx2) => `Score: ${ctx2.parsed.y}/10`
@@ -1154,9 +1235,22 @@ class App {
         if (!window.Chart || !this.$.barChart) return;
         this.destroyChart('bar');
         const ctx = this.$.barChart.getContext('2d');
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
         const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
         const values = [weak, mid, high];
+
+        const gWeak = ctx.createLinearGradient(0, 0, 0, 260);
+        gWeak.addColorStop(0, isDark ? '#fb7185' : '#ef4444');
+        gWeak.addColorStop(1, isDark ? '#f43f5e' : '#dc2626');
+
+        const gMid = ctx.createLinearGradient(0, 0, 0, 260);
+        gMid.addColorStop(0, isDark ? '#fbbf24' : '#f59e0b');
+        gMid.addColorStop(1, isDark ? '#f59e0b' : '#d97706');
+
+        const gHigh = ctx.createLinearGradient(0, 0, 0, 260);
+        gHigh.addColorStop(0, isDark ? '#34d399' : '#10b981');
+        gHigh.addColorStop(1, isDark ? '#10b981' : '#059669');
 
         this.charts.bar = new Chart(ctx, {
             type: 'bar',
@@ -1164,8 +1258,9 @@ class App {
                 labels: ['Weak', 'Needs Work', 'High'],
                 datasets: [{
                     data: values,
-                    backgroundColor: ['#ef4444', '#f59e0b', '#059669'],
-                    borderRadius: 10,
+                    backgroundColor: [gWeak, gMid, gHigh],
+                    hoverBackgroundColor: [isDark ? '#fb7185' : '#f87171', isDark ? '#fbbf24' : '#f59e0b', isDark ? '#34d399' : '#10b981'],
+                    borderRadius: 14,
                     borderSkipped: false
                 }]
             },
@@ -1173,14 +1268,20 @@ class App {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: { duration: 700, easing: 'easeOutQuart' },
+                datasets: {
+                    bar: {
+                        barPercentage: 0.64,
+                        categoryPercentage: 0.62
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { color: this.css('--tx3'), precision: 0 },
-                        grid: { color: this.css('--border-lt') }
+                        ticks: { color: this.css('--tx3'), precision: 0, padding: 8 },
+                        grid: { color: this.css('--border-lt'), drawBorder: false }
                     },
                     x: {
-                        ticks: { color: this.css('--tx2') },
+                        ticks: { color: this.css('--tx2'), font: { weight: '600' } },
                         grid: { display: false }
                     }
                 },
@@ -1192,6 +1293,8 @@ class App {
                         bodyColor: this.css('--tx2'),
                         borderColor: this.css('--border'),
                         borderWidth: 1,
+                        cornerRadius: 10,
+                        padding: 10,
                         callbacks: {
                             label: (ctx2) => `${ctx2.raw} prompts (${pct(ctx2.raw)}%)`
                         }
@@ -1429,7 +1532,7 @@ class App {
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt })
+                body: JSON.stringify({ prompt, mode: 'quick' })
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Challenge failed');
@@ -1507,7 +1610,7 @@ class App {
         el.focus();
         this.detect();
         this.counts();
-        this.$.analyzeBtn.disabled = !el.value.trim();
+        this.updateAnalyzeButtonState();
         this.saveDraft();
     }
 
@@ -1544,7 +1647,7 @@ class App {
     saveDraft() { localStorage.setItem('pt_draft', this.$.input.value); }
     loadDraft() {
         const d = localStorage.getItem('pt_draft');
-        if (d) { this.$.input.value = d; this.$.analyzeBtn.disabled = !d.trim(); this.detect(); this.counts(); }
+        if (d) { this.$.input.value = d; this.detect(); this.counts(); this.updateAnalyzeButtonState(); }
     }
 
     fallbackCopy(text, onDone) {
