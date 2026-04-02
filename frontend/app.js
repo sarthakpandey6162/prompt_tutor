@@ -1627,7 +1627,7 @@ class App {
             if (Array.isArray(d)) {
                 this.$.chatList.innerHTML = '';
                 if(d.length === 0) {
-                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hello! I'm your AI prompt tutor. How can I help you refine your prompts today?</div></div>`;
+                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hey! I am your prompt buddy. Ask me anything about prompts, and you can type commands like "open github.com" or "open settings".</div></div>`;
                 } else {
                     d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
                     this.scrollChat();
@@ -1658,6 +1658,66 @@ class App {
         }
     }
 
+    getChatSystemPrompt() {
+        return {
+            role: 'system',
+            content: 'You are Prompt Tutor Buddy: helpful, friendly, and classmate-like. Keep answers clear and practical. Use short explanations, ask clarifying questions when needed, and avoid robotic tone. If user asks to open a website or app section, briefly acknowledge and continue helping.'
+        };
+    }
+
+    normalizeUrlCandidate(raw) {
+        const s = String(raw || '').trim();
+        if (!s) return null;
+        if (/^https?:\/\//i.test(s)) return s;
+        if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(s)) return `https://${s}`;
+        return null;
+    }
+
+    runChatLocalCommand(text) {
+        const raw = String(text || '').trim();
+        const lower = raw.toLowerCase();
+        if (!lower.startsWith('open ')) return { handled: false };
+
+        const targetRaw = raw.slice(5).trim();
+        const target = targetRaw.toLowerCase();
+        if (!target) {
+            return { handled: true, reply: 'Tell me what to open, like: open github.com or open settings.' };
+        }
+
+        const viewMap = {
+            craft: 'craft',
+            'tutor chat': 'chat',
+            chat: 'chat',
+            library: 'library',
+            'saved prompts': 'saved',
+            saved: 'saved',
+            lessons: 'lessons',
+            stats: 'stats',
+            challenges: 'challenges',
+            'cheat sheet': 'cheatsheet',
+            cheatsheet: 'cheatsheet',
+            theme: 'theme'
+        };
+
+        if (target === 'settings') {
+            this.openModal();
+            return { handled: true, reply: 'Opened settings for you.' };
+        }
+
+        if (viewMap[target]) {
+            this.go(viewMap[target]);
+            return { handled: true, reply: `Opened ${targetRaw}.` };
+        }
+
+        const url = this.normalizeUrlCandidate(targetRaw);
+        if (url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+            return { handled: true, reply: `Opened ${url} in a new tab.` };
+        }
+
+        return { handled: true, reply: 'I can open app sections or valid links. Example: open craft, open settings, or open github.com' };
+    }
+
     async sendChatMessage() {
         const text = this.$.chatInput?.value.trim();
         if(!text) return;
@@ -1666,6 +1726,13 @@ class App {
         this.$.chatSendBtn.disabled = true;
 
         this.appendChatBubble('user', text);
+
+        const commandResult = this.runChatLocalCommand(text);
+        if (commandResult.handled) {
+            this.appendChatBubble('assistant', commandResult.reply);
+            this.$.chatSendBtn.disabled = false;
+            return;
+        }
 
         // Append AI thinking bubble with typing indicator
         const aiBubble = document.createElement('div');
@@ -1689,11 +1756,13 @@ class App {
             msgs.push({ role: 'user', content: text });
         }
 
+        const payloadMessages = [this.getChatSystemPrompt(), ...msgs];
+
         try {
             const resp = await fetch(`${this.API}/chat/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: msgs })
+                body: JSON.stringify({ messages: payloadMessages })
             });
 
             if (!resp.ok) {
