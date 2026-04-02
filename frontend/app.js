@@ -172,7 +172,12 @@ class App {
         document.getElementById('settingsNav')?.addEventListener('click', () => this.openModal());
         // Input
         this.$.input.addEventListener('input', () => { this.detect(); this.counts(); this.updateAnalyzeButtonState(); this.saveDraft(); });
-        this.$.input.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this.$.analyzeBtn.disabled) { e.preventDefault(); this.analyze(); } });
+        this.$.input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey && !this.$.analyzeBtn.disabled) {
+                e.preventDefault();
+                this.analyze();
+            }
+        });
         document.addEventListener('keydown', (e) => {
             if (e.key === '/' && document.activeElement !== this.$.input && !this.$.modal.classList.contains('open') && !this.$.tourWrap.classList.contains('open')) {
                 e.preventDefault();
@@ -264,7 +269,12 @@ class App {
 
         // Chat
         this.$.chatSendBtn?.addEventListener('click', () => this.sendChatMessage());
-        this.$.chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.sendChatMessage(); } });
+        this.$.chatInput?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendChatMessage();
+            }
+        });
         this.$.chatClearBtn?.addEventListener('click', () => this.clearChat());
     }
 
