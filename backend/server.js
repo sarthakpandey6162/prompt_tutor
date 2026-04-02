@@ -17,7 +17,10 @@ const {
     getSetting,
     setSetting,
     toggleSave,
-    importHistory
+    importHistory,
+    getChatHistory,
+    addChatMessage,
+    clearChatHistory
 } = require('./database');
 
 const app = express();
@@ -94,7 +97,7 @@ app.get('/api/usage', (req, res) => {
 
 // --- Analyze Prompt ---
 app.post('/api/analyze', async (req, res) => {
-    const { prompt, mode } = req.body;
+    const { prompt, mode, model } = req.body;
 
     if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'Prompt is required' });
@@ -155,7 +158,7 @@ app.post('/api/analyze', async (req, res) => {
 Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
 
     const requestBody = {
-        model: "llama-3.1-8b-instant",
+        model: model || "llama-3.1-8b-instant",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Analyze this prompt:\n"""${prompt.trim()}"""` }
@@ -251,6 +254,130 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
     }
 });
 
+// --- Craft Prompt from Idea ---
+app.post('/api/craft-prompt', async (req, res) => {
+    const { idea, tone, audience, format } = req.body;
+
+    if (!idea || !idea.trim()) {
+        return res.status(400).json({ error: 'An idea is required' });
+    }
+
+    if (idea.trim().length > 2000) {
+        return res.status(400).json({ error: 'Idea too long. Keep it under 2000 characters.' });
+    }
+
+    const apiKey = getSetting('groq_api_key');
+    if (!apiKey) {
+        return res.status(400).json({ error: 'API key not configured. Please set your Groq API key first.' });
+    }
+
+    const estimatedTokens = estimateRequestTokens(idea, MODE_PROFILES.balanced);
+    const budget = getBudgetSnapshot();
+    if (budget.remaining < estimatedTokens) {
+        return res.status(429).json({
+            error: 'Token budget low. Please wait a moment and try again.',
+            budget
+        });
+    }
+
+    const toneHint = tone ? `Tone: ${tone}.` : '';
+    const audienceHint = audience ? `Target audience: ${audience}.` : '';
+    const formatHint = format ? `Desired output format: ${format}.` : '';
+
+    const systemPrompt = `You are an expert prompt engineer. The user will give you a rough idea or goal. Your job is to craft a highly effective, well-structured AI prompt from that idea.
+
+Rules:
+- The prompt should be specific, actionable, and include role, context, constraints, and output format where applicable.
+- Make it professional-grade quality (score 8+/10 on prompt engineering standards).
+- ${toneHint} ${audienceHint} ${formatHint}
+
+Respond ONLY with valid JSON:
+{
+  "prompt": "<the crafted prompt>",
+  "title": "<short 3-5 word title for this prompt>",
+  "tips": ["<tip about why this structure works>", "<another tip>"]
+}`;
+
+    try {
+        let response = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "llama-3.1-8b-instant",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
+                ],
+                temperature: 0.7,
+                response_format: { type: "json_object" },
+                max_tokens: 600
+            })
+        });
+
+        if (response.status === 429) {
+            await new Promise(r => setTimeout(r, 3000));
+            response = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: "llama-3.1-8b-instant",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
+                    ],
+                    temperature: 0.7,
+                    response_format: { type: "json_object" },
+                    max_tokens: 600
+                })
+            });
+            if (response.status === 429) {
+                return res.status(429).json({ error: 'API limit reached. Please wait and try again.' });
+            }
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return res.status(response.status).json({ error: errorData?.error?.message || `API error (${response.status})` });
+        }
+
+        const data = await response.json();
+        const usageTokens = data?.usage?.total_tokens || estimatedTokens;
+        consumeTokens(usageTokens);
+
+        const text = data.choices?.[0]?.message?.content;
+        if (!text) {
+            return res.status(500).json({ error: 'No response from AI. Please try again.' });
+        }
+
+        let result;
+        try {
+            let cleanText = text.trim();
+            if (cleanText.startsWith('```')) {
+                cleanText = cleanText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+            }
+            result = JSON.parse(cleanText);
+        } catch (e) {
+            return res.status(500).json({ error: 'Invalid AI response. Please try again.' });
+        }
+
+        res.json({
+            success: true,
+            ...result,
+            budget: getBudgetSnapshot()
+        });
+
+    } catch (error) {
+        console.error('Craft prompt error:', error);
+        res.status(500).json({ error: error.message || 'Something went wrong.' });
+    }
+});
+
 // --- Get History ---
 app.get('/api/history', (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
@@ -299,6 +426,95 @@ app.delete('/api/history', (req, res) => {
 app.get('/api/stats', (req, res) => {
     const stats = getStats();
     res.json(stats);
+});
+
+// --- Chat Endpoints ---
+app.get('/api/chat', (req, res) => {
+    res.json(getChatHistory());
+});
+
+app.delete('/api/chat', (req, res) => {
+    clearChatHistory();
+    res.json({ success: true });
+});
+
+app.post('/api/chat/stream', async (req, res) => {
+    const { messages, model } = req.body;
+    
+    if (!messages || !messages.length) return res.status(400).json({ error: 'No messages provided' });
+
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+        addChatMessage('user', lastMsg.content);
+    }
+
+    const apiKey = getSetting('groq_api_key');
+    if (!apiKey) {
+        return res.status(400).json({ error: 'API key not configured. Please set your Groq API key first.' });
+    }
+
+    const selectedModel = model || 'llama-3.1-8b-instant';
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+        const fetchResponse = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: selectedModel,
+                messages: messages,
+                stream: true,
+                temperature: 0.7,
+                max_tokens: 1500
+            })
+        });
+
+        if (!fetchResponse.ok) {
+            const err = await fetchResponse.json().catch(()=>({}));
+            res.write(`data: ${JSON.stringify({ error: err?.error?.message || 'API Error' })}\n\n`);
+            return res.end();
+        }
+
+        let fullAiText = '';
+        const reader = fetchResponse.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') { // Note: [DONE] is handled below if needed, but OpenAI spec sends data: [DONE]
+                    try {
+                        let jsonStr = line.substring(6).trim();
+                        if (jsonStr === '[DONE]') continue;
+                        const parsed = JSON.parse(jsonStr);
+                        const content = parsed.choices[0]?.delta?.content || '';
+                        if (content) {
+                            fullAiText += content;
+                            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+
+        addChatMessage('assistant', fullAiText);
+        res.write('data: [DONE]\n\n');
+        res.end();
+
+    } catch (err) {
+        console.error('Stream error:', err);
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+    }
 });
 
 app.get('/api/health', (req, res) => {

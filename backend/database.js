@@ -8,10 +8,12 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, 'prompts.json');
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
+const CHATS_PATH = path.join(__dirname, 'chats.json');
 
 // Initialize empty files if they don't exist
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify([]));
 if (!fs.existsSync(SETTINGS_PATH)) fs.writeFileSync(SETTINGS_PATH, JSON.stringify({}));
+if (!fs.existsSync(CHATS_PATH)) fs.writeFileSync(CHATS_PATH, JSON.stringify([]));
 
 function readJSON(filePath) {
     try {
@@ -254,6 +256,21 @@ function toggleSave(id) {
     return null;
 }
 
+// ===== Chat History =====
+function getChatHistory() {
+    return readJSON(CHATS_PATH);
+}
+
+function addChatMessage(role, content) {
+    const chats = readJSON(CHATS_PATH);
+    chats.push({ role, content, ts: Date.now() });
+    writeJSON(CHATS_PATH, chats);
+}
+
+function clearChatHistory() {
+    writeJSON(CHATS_PATH, []);
+}
+
 module.exports = {
     initDatabase,
     saveAnalysis,
@@ -267,5 +284,8 @@ module.exports = {
     getSetting,
     setSetting,
     toggleSave,
-    importHistory
+    importHistory,
+    getChatHistory,
+    addChatMessage,
+    clearChatHistory
 };

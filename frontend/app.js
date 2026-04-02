@@ -28,17 +28,6 @@ class App {
         ];
         this.loadingTick = null;
         this.charts = { line: null, bar: null, radar: null };
-        this.particle = {
-            canvas: null,
-            ctx: null,
-            particles: [],
-            dpr: Math.min(window.devicePixelRatio || 1, 2),
-            rafId: null,
-            width: 0,
-            height: 0,
-            palette: null,
-            reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        };
         this.lessons = this.getLessons();
         this.challenges = this.getChallenges();
         this.lessonState = this.loadProgressState('pt_lessons_completed');
@@ -47,18 +36,6 @@ class App {
         this.activeChallengeId = null;
         this.cache();
         this.bind();
-        // Spotlight effect (Optimized with rAF)
-        let ticking = false;
-        window.addEventListener('mousemove', e => {
-            if (!ticking) {
-                window.requestAnimationFrame(() => {
-                    document.body.style.setProperty('--mouse-x', `${e.clientX}px`);
-                    document.body.style.setProperty('--mouse-y', `${e.clientY}px`);
-                    ticking = false;
-                });
-                ticking = true;
-            }
-        });
     }
 
     cache() {
@@ -143,11 +120,6 @@ class App {
             modalStatus: document.getElementById('modalStatus'),
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
-            // Theme
-            themeToggle: document.getElementById('themeToggle'),
-            themeIcon: document.getElementById('themeIcon'),
-            themeLabel: document.getElementById('themeLabel'),
-            particleCanvas: document.getElementById('particleCanvas'),
             // Toast
             toastStack: document.getElementById('toastStack'),
             // Tour
@@ -182,6 +154,14 @@ class App {
             challengeResult: document.getElementById('challengeResult'),
             challengeFeedback: document.getElementById('challengeFeedback'),
             challengeProgress: document.getElementById('challengeProgress'),
+            // Chat
+            chatList: document.getElementById('chatList'),
+            chatScroll: document.getElementById('chatScroll'),
+            chatInput: document.getElementById('chatInput'),
+            chatSendBtn: document.getElementById('chatSendBtn'),
+            chatClearBtn: document.getElementById('chatClearBtn'),
+            chatModelSelect: document.getElementById('chatModelSelect'),
+            modelSelect: document.getElementById('modelSelect')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -254,8 +234,15 @@ class App {
             const inp = this.$.apiKeyInput;
             inp.type = inp.type === 'password' ? 'text' : 'password';
         });
-        // Theme toggle
-        this.$.themeToggle.addEventListener('click', () => this.toggleTheme());
+
+        // Theme page — mode toggle buttons
+        document.getElementById('lightModeBtn')?.addEventListener('click', () => this.setThemeMode('light'));
+        document.getElementById('darkModeBtn')?.addEventListener('click', () => this.setThemeMode('dark'));
+
+        // Theme page — wallpaper cards
+        document.querySelectorAll('.wp-card').forEach(btn => {
+            btn.addEventListener('click', () => this.setWallpaper(btn.dataset.wp));
+        });
 
         // Tour
         this.$.tourFab?.addEventListener('click', () => this.openTour(true));
@@ -272,12 +259,27 @@ class App {
         // Challenges
         this.$.challengeBack?.addEventListener('click', () => this.showChallengesList());
         this.$.challengeSubmit?.addEventListener('click', () => this.submitChallenge());
+
+        // PromptCraft
+        const pcIdea = document.getElementById('pcIdea');
+        const pcBtn = document.getElementById('pcGenerateBtn');
+        pcIdea?.addEventListener('input', () => {
+            if (pcBtn) pcBtn.disabled = !pcIdea.value.trim();
+        });
+        pcBtn?.addEventListener('click', () => this.craftPrompt());
+        document.getElementById('pcCopyBtn')?.addEventListener('click', () => this.copyPromptCraft());
+        document.getElementById('pcUseBtn')?.addEventListener('click', () => this.usePromptCraftInEditor());
+
+        // Chat
+        this.$.chatSendBtn?.addEventListener('click', () => this.sendChatMessage());
+        this.$.chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.sendChatMessage(); } });
+        this.$.chatClearBtn?.addEventListener('click', () => this.clearChat());
     }
 
     async init() {
         this.loadTheme();
+        this.loadWallpaper();
         if (this.$.analyzeMode) this.$.analyzeMode.value = this.analysisMode;
-        this.initParticles();
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
@@ -293,153 +295,128 @@ class App {
     loadTheme() {
         const saved = localStorage.getItem('pt_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', saved);
-        this.updateThemeUI(saved);
+        this.syncThemeModeButtons(saved);
     }
 
-    toggleTheme() {
-        const current = document.documentElement.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        localStorage.setItem('pt_theme', next);
-        this.updateThemeUI(next);
-        this.updateParticlePalette();
+    setThemeMode(mode) {
+        document.documentElement.setAttribute('data-theme', mode);
+        localStorage.setItem('pt_theme', mode);
+        this.syncThemeModeButtons(mode);
         if (document.getElementById('view-stats')?.classList.contains('active')) {
             this.loadStats();
         }
     }
 
-    initParticles() {
-        const canvas = this.$.particleCanvas;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+    syncThemeModeButtons(theme) {
+        const lightBtn = document.getElementById('lightModeBtn');
+        const darkBtn = document.getElementById('darkModeBtn');
+        if (lightBtn) lightBtn.classList.toggle('active', theme === 'light');
+        if (darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
+    }
 
-        this.particle.canvas = canvas;
-        this.particle.ctx = ctx;
+    /* ===== PromptCraft ===== */
+    async craftPrompt() {
+        const idea = document.getElementById('pcIdea')?.value?.trim();
+        if (!idea) return;
 
-        const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-        const onMotionChange = (e) => {
-            this.particle.reducedMotion = e.matches;
-            this.rebuildParticles();
-        };
-        if (typeof media.addEventListener === 'function') {
-            media.addEventListener('change', onMotionChange);
-        } else if (typeof media.addListener === 'function') {
-            media.addListener(onMotionChange);
-        }
+        const tone = document.getElementById('pcTone')?.value || '';
+        const audience = document.getElementById('pcAudience')?.value || '';
+        const format = document.getElementById('pcFormat')?.value || '';
+        const btn = document.getElementById('pcGenerateBtn');
+        const btnTxt = document.getElementById('pcGenerateTxt');
+        const spinner = document.getElementById('pcSpinner');
 
-        window.addEventListener('resize', () => this.rebuildParticles(), { passive: true });
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                if (this.particle.rafId) cancelAnimationFrame(this.particle.rafId);
-                this.particle.rafId = null;
-            } else if (!this.particle.rafId) {
-                this.animateParticles();
+        // Loading state
+        if (btn) btn.disabled = true;
+        if (btnTxt) btnTxt.textContent = 'Crafting...';
+        if (spinner) spinner.style.display = 'inline-block';
+
+        try {
+            const resp = await fetch('/api/craft-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idea, tone, audience, format })
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                this.toast(data.error || 'Failed to craft prompt', 'error');
+                return;
             }
-        });
 
-        this.rebuildParticles();
-    }
+            // Show result
+            this._lastCraftedPrompt = data.prompt;
+            document.getElementById('pcEmpty').style.display = 'none';
+            const resultEl = document.getElementById('pcResult');
+            resultEl.style.display = 'flex';
 
-    updateParticlePalette() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        this.particle.palette = isDark
-            ? ['129, 140, 248', '45, 212, 191', '244, 114, 182']
-            : ['79, 70, 229', '16, 185, 129', '99, 102, 241'];
-    }
+            document.getElementById('pcResultTitle').textContent = data.title || 'Crafted Prompt';
+            document.getElementById('pcPromptText').textContent = data.prompt;
 
-    rebuildParticles() {
-        if (!this.particle.canvas || !this.particle.ctx) return;
-
-        const { canvas, ctx } = this.particle;
-        this.particle.dpr = Math.min(window.devicePixelRatio || 1, 2);
-        this.particle.width = window.innerWidth;
-        this.particle.height = window.innerHeight;
-
-        canvas.width = Math.floor(this.particle.width * this.particle.dpr);
-        canvas.height = Math.floor(this.particle.height * this.particle.dpr);
-        canvas.style.width = `${this.particle.width}px`;
-        canvas.style.height = `${this.particle.height}px`;
-        ctx.setTransform(this.particle.dpr, 0, 0, this.particle.dpr, 0, 0);
-
-        this.updateParticlePalette();
-        const area = this.particle.width * this.particle.height;
-        const targetCount = this.particle.reducedMotion
-            ? Math.max(16, Math.round(area / 100000))
-            : Math.max(28, Math.round(area / 52000));
-
-        this.particle.particles = Array.from({ length: targetCount }, () => {
-            const speedScale = this.particle.reducedMotion ? 0.06 : 0.22;
-            return {
-                x: Math.random() * this.particle.width,
-                y: Math.random() * this.particle.height,
-                r: Math.random() * 2.2 + 0.8,
-                vx: (Math.random() - 0.5) * speedScale,
-                vy: (Math.random() - 0.5) * speedScale,
-                alpha: Math.random() * 0.35 + 0.15,
-                c: this.particle.palette[Math.floor(Math.random() * this.particle.palette.length)]
-            };
-        });
-
-        if (this.particle.rafId) cancelAnimationFrame(this.particle.rafId);
-        this.particle.rafId = null;
-        this.animateParticles();
-    }
-
-    animateParticles() {
-        if (!this.particle.ctx || !this.particle.canvas || document.hidden) return;
-
-        const { ctx, width, height, particles } = this.particle;
-        ctx.clearRect(0, 0, width, height);
-
-        for (const p of particles) {
-            p.x += p.vx;
-            p.y += p.vy;
-
-            if (p.x < -20) p.x = width + 20;
-            if (p.x > width + 20) p.x = -20;
-            if (p.y < -20) p.y = height + 20;
-            if (p.y > height + 20) p.y = -20;
-
-            ctx.beginPath();
-            ctx.fillStyle = `rgba(${p.c}, ${p.alpha})`;
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const maxDist = 120;
-        for (let i = 0; i < particles.length; i++) {
-            for (let j = i + 1; j < particles.length; j++) {
-                const a = particles[i];
-                const b = particles[j];
-                const dx = a.x - b.x;
-                const dy = a.y - b.y;
-                const dist = Math.hypot(dx, dy);
-                if (dist < maxDist) {
-                    const op = (1 - dist / maxDist) * 0.18;
-                    ctx.strokeStyle = `rgba(148, 163, 184, ${op})`;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(a.x, a.y);
-                    ctx.lineTo(b.x, b.y);
-                    ctx.stroke();
-                }
+            // Render tips
+            const tipsEl = document.getElementById('pcTips');
+            tipsEl.innerHTML = '';
+            if (data.tips && data.tips.length) {
+                data.tips.forEach(tip => {
+                    const div = document.createElement('div');
+                    div.className = 'pc-tip';
+                    div.textContent = tip;
+                    tipsEl.appendChild(div);
+                });
             }
-        }
 
-        if (!this.particle.reducedMotion) {
-            this.particle.rafId = requestAnimationFrame(() => this.animateParticles());
+            if (data.budget) this.refreshUsageBudget();
+
+        } catch (err) {
+            this.toast('Network error. Please check your connection.', 'error');
+        } finally {
+            if (btn) btn.disabled = !idea;
+            if (btnTxt) btnTxt.textContent = 'Generate Prompt';
+            if (spinner) spinner.style.display = 'none';
         }
     }
 
-    updateThemeUI(theme) {
-        if (theme === 'dark') {
-            this.$.themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-            this.$.themeLabel.textContent = 'Light Mode';
-        } else {
-            this.$.themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-            this.$.themeLabel.textContent = 'Dark Mode';
+    copyPromptCraft() {
+        const text = this._lastCraftedPrompt;
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const el = document.getElementById('pcCopyTxt');
+            if (el) { el.textContent = 'Copied!'; setTimeout(() => el.textContent = 'Copy', 1500); }
+        });
+    }
+
+    usePromptCraftInEditor() {
+        const text = this._lastCraftedPrompt;
+        if (!text) return;
+        // Navigate to Craft view and populate editor
+        this.go('craft');
+        const editor = this.$.promptInput;
+        if (editor) {
+            editor.innerText = text;
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
         }
+        this.toast('Prompt loaded into editor!', 'success');
+    }
+
+    /* ===== Wallpaper Picker ===== */
+    setWallpaper(id) {
+        localStorage.setItem('pt_wallpaper', id);
+        this.applyWallpaper(id);
+    }
+
+    loadWallpaper() {
+        const id = localStorage.getItem('pt_wallpaper') || '1';
+        this.applyWallpaper(id);
+    }
+
+    applyWallpaper(id) {
+        const img = document.getElementById('bgImage');
+        if (img) img.src = `bg-light-${id}.png`;
+        // Update active state on wallpaper cards
+        document.querySelectorAll('.wp-card').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.wp === id);
+        });
     }
 
     getLessons() {
@@ -527,7 +504,13 @@ class App {
         if (actualView === 'stats') this.loadStats();
         if (actualView === 'lessons') this.renderLessonsList();
         if (actualView === 'challenges') this.renderChallengesList();
+        if (actualView === 'chat') this.loadChat();
         if (actualView === 'cheatsheet') this.buildCheatSheet();
+        if (actualView === 'theme') {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            this.syncThemeModeButtons(currentTheme);
+            this.loadWallpaper();
+        }
     }
 
     /* ===== API Key ===== */
@@ -659,10 +642,11 @@ class App {
         this.lastAnalyzeAt = now;
 
         try {
+            const modelVal = this.$.modelSelect ? this.$.modelSelect.value : null;
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ prompt, mode: this.analysisMode })
+                body: JSON.stringify({ prompt, mode: this.analysisMode, model: modelVal })
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
@@ -1636,12 +1620,139 @@ class App {
 
     esc(s) { return s ? s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)) : ''; }
 
-    toast(msg, type = '') {
-        const el = document.createElement('div');
-        el.className = `toast ${type}`;
-        el.textContent = msg;
-        this.$.toastStack.appendChild(el);
-        setTimeout(() => el.remove(), 3200);
+    toast(msg, type='ok') {
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.textContent = msg;
+        this.$.toastStack.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+
+    /* ===== Chat View ===== */
+    async loadChat() {
+        if(!this.$.chatList) return;
+        try {
+            const r = await fetch(`${this.API}/chat`);
+            const d = await r.json();
+            if (Array.isArray(d)) {
+                this.$.chatList.innerHTML = '';
+                if(d.length === 0) {
+                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hello! I'm your AI prompt tutor. How can I help you refine your prompts today?</div></div>`;
+                } else {
+                    d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
+                    this.scrollChat();
+                }
+            }
+        } catch(e) {}
+    }
+
+    async clearChat() {
+        try {
+            await fetch(`${this.API}/chat`, { method: 'DELETE' });
+            this.loadChat();
+        } catch(e){}
+    }
+
+    appendChatBubble(role, content) {
+        const div = document.createElement('div');
+        div.className = `chat-msg ${role === 'user' ? 'msg-user' : 'msg-ai'}`;
+        div.innerHTML = `<div class="msg-avatar">${role === 'user' ? 'U' : '🤖'}</div><div class="msg-content">${this.esc(content)}</div>`;
+        this.$.chatList.appendChild(div);
+        this.scrollChat();
+        return div;
+    }
+
+    scrollChat() {
+        if(this.$.chatScroll) {
+            this.$.chatScroll.scrollTop = this.$.chatScroll.scrollHeight;
+        }
+    }
+
+    async sendChatMessage() {
+        const text = this.$.chatInput?.value.trim();
+        if(!text) return;
+
+        this.$.chatInput.value = '';
+        this.$.chatSendBtn.disabled = true;
+
+        this.appendChatBubble('user', text);
+
+        // Append AI thinking bubble with typing indicator
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'chat-msg msg-ai';
+        aiBubble.innerHTML = `<div class="msg-avatar">🤖</div><div class="msg-content"><span class="typing-indicator"></span></div>`;
+        this.$.chatList.appendChild(aiBubble);
+        this.scrollChat();
+
+        const contentDiv = aiBubble.querySelector('.msg-content');
+
+        const msgs = [];
+        // fetch existing history to build context, keeping it simple by reading DOM or just relying on what's fetched. Actually easier to just send DOM history
+        Array.from(this.$.chatList.querySelectorAll('.chat-msg')).forEach(bubble => {
+            const isUser = bubble.classList.contains('msg-user');
+            const txt = bubble.querySelector('.msg-content').innerText.replace('...', '').trim();
+            if(txt) msgs.push({ role: isUser ? 'user' : 'assistant', content: txt });
+        });
+
+        // Remove the empty AI message we just added
+        msgs.pop();
+
+        const modelVal = this.$.chatModelSelect ? this.$.chatModelSelect.value : null;
+
+        try {
+            const resp = await fetch(`${this.API}/chat/stream`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: msgs, model: modelVal })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(()=>({}));
+                throw new Error(err.error || 'Chat error');
+            }
+
+            contentDiv.innerHTML = '<span class="typing-indicator"></span>';
+            let streamText = '';
+            
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.substring(6).trim();
+                        if (jsonStr === '[DONE]') continue;
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            if (data.error) throw new Error(data.error);
+                            if (data.content) {
+                                streamText += data.content;
+                                contentDiv.textContent = streamText;
+                                const indicator = document.createElement('span');
+                                indicator.className = 'typing-indicator';
+                                contentDiv.appendChild(indicator);
+                                this.scrollChat();
+                            }
+                        } catch(e) {}
+                    }
+                }
+            }
+            
+            // Finalize
+            contentDiv.textContent = streamText;
+
+        } catch (e) {
+            contentDiv.textContent = `Error: ${e.message}`;
+            contentDiv.style.color = 'var(--red)';
+        } finally {
+            this.$.chatSendBtn.disabled = false;
+        }
     }
 
     saveDraft() { localStorage.setItem('pt_draft', this.$.input.value); }
