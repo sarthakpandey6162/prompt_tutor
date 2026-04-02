@@ -8,6 +8,7 @@ app.use(express.json());
 // In-memory storage (Vercel serverless = ephemeral filesystem)
 let promptHistory = [];
 let settings = {};
+let chatHistory = [];
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const TOKEN_LIMIT_PER_MINUTE = 6000;
 const usageWindow = [];
@@ -57,6 +58,10 @@ function detectPromptElements(text) {
     };
 }
 
+function getApiKey() {
+    return process.env.GROQ_API_KEY || settings.groq_api_key;
+}
+
 // --- API Key Management ---
 app.post('/api/set-api-key', (req, res) => {
     const { apiKey } = req.body;
@@ -88,6 +93,115 @@ app.get('/api/usage', (req, res) => {
     res.json(getBudgetSnapshot());
 });
 
+// --- Craft Prompt From Idea ---
+app.post('/api/craft-prompt', async (req, res) => {
+    try {
+        const { idea, tone, audience, format } = req.body || {};
+        if (!idea || !idea.trim()) return res.status(400).json({ error: 'An idea is required' });
+        if (idea.trim().length > 2000) return res.status(400).json({ error: 'Idea too long. Keep it under 2000 characters.' });
+
+        const apiKey = getApiKey();
+        if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
+
+        const estimatedTokens = estimateRequestTokens(idea, MODE_PROFILES.balanced);
+        const budget = getBudgetSnapshot();
+        if (budget.remaining < estimatedTokens) {
+            return res.status(429).json({
+                error: 'Token budget low. Please wait a moment and try again.',
+                budget
+            });
+        }
+
+        const toneHint = tone ? `Tone: ${tone}.` : '';
+        const audienceHint = audience ? `Target audience: ${audience}.` : '';
+        const formatHint = format ? `Desired output format: ${format}.` : '';
+
+        const systemPrompt = `You are an expert prompt engineer. The user will give you a rough idea or goal. Your job is to craft a highly effective, well-structured AI prompt from that idea.
+
+Rules:
+- The prompt should be specific, actionable, and include role, context, constraints, and output format where applicable.
+- Make it professional-grade quality (score 8+/10 on prompt engineering standards).
+- ${toneHint} ${audienceHint} ${formatHint}
+
+Respond ONLY with valid JSON:
+{
+  "prompt": "<the crafted prompt>",
+  "title": "<short 3-5 word title for this prompt>",
+  "tips": ["<tip about why this structure works>", "<another tip>"]
+}`;
+
+        let response = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
+                ],
+                temperature: 0.7,
+                response_format: { type: 'json_object' },
+                max_tokens: 600
+            })
+        });
+
+        if (response.status === 429) {
+            await new Promise(r => setTimeout(r, 3000));
+            response = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.1-8b-instant',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
+                    ],
+                    temperature: 0.7,
+                    response_format: { type: 'json_object' },
+                    max_tokens: 600
+                })
+            });
+            if (response.status === 429) {
+                return res.status(429).json({ error: 'API limit reached. Please wait and try again.' });
+            }
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return res.status(response.status).json({ error: errorData?.error?.message || `API error (${response.status})` });
+        }
+
+        const data = await response.json();
+        const usageTokens = data?.usage?.total_tokens || estimatedTokens;
+        consumeTokens(usageTokens);
+
+        const text = data.choices?.[0]?.message?.content;
+        if (!text) return res.status(500).json({ error: 'No response from AI. Please try again.' });
+
+        let result;
+        try {
+            let cleanText = text.trim();
+            if (cleanText.startsWith('```')) {
+                cleanText = cleanText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+            }
+            result = JSON.parse(cleanText);
+        } catch {
+            return res.status(500).json({ error: 'Invalid AI response. Please try again.' });
+        }
+
+        res.json({ success: true, ...result, budget: getBudgetSnapshot() });
+    } catch (error) {
+        console.error('Craft prompt error:', error);
+        res.status(500).json({ error: error.message || 'Something went wrong.' });
+    }
+});
+
 // --- Prompt Analysis ---
 app.post('/api/analyze', async (req, res) => {
     try {
@@ -110,7 +224,7 @@ app.post('/api/analyze', async (req, res) => {
             });
         }
 
-        const apiKey = process.env.GROQ_API_KEY || settings.groq_api_key;
+        const apiKey = getApiKey();
         if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
 
         const existing = promptHistory.find(p => p.prompt_text === cleanPrompt);
@@ -320,6 +434,102 @@ app.delete('/api/history/:id', (req, res) => {
 app.delete('/api/history', (req, res) => {
     promptHistory = [];
     res.json({ success: true, message: 'History cleared' });
+});
+
+// --- Chat ---
+app.get('/api/chat', (req, res) => {
+    res.json(chatHistory);
+});
+
+app.delete('/api/chat', (req, res) => {
+    chatHistory = [];
+    res.json({ success: true });
+});
+
+app.post('/api/chat/stream', async (req, res) => {
+    try {
+        const { messages, model } = req.body || {};
+        if (!Array.isArray(messages) || !messages.length) {
+            return res.status(400).json({ error: 'No messages provided' });
+        }
+
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg && lastMsg.role === 'user') {
+            chatHistory.push({ role: 'user', content: String(lastMsg.content || ''), ts: Date.now() });
+            if (chatHistory.length > 400) chatHistory = chatHistory.slice(-400);
+        }
+
+        const apiKey = getApiKey();
+        if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const response = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: model || 'llama-3.1-8b-instant',
+                messages,
+                stream: true,
+                temperature: 0.7,
+                max_tokens: 1500
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            res.write(`data: ${JSON.stringify({ error: err?.error?.message || 'API Error' })}\n\n`);
+            return res.end();
+        }
+
+        let fullAiText = '';
+        let buffer = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split('\n\n');
+            buffer = events.pop() || '';
+
+            for (const event of events) {
+                const line = event.split('\n').find(l => l.startsWith('data: '));
+                if (!line) continue;
+
+                const payload = line.substring(6).trim();
+                if (payload === '[DONE]') continue;
+
+                try {
+                    const parsed = JSON.parse(payload);
+                    const content = parsed.choices?.[0]?.delta?.content || '';
+                    if (content) {
+                        fullAiText += content;
+                        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                    }
+                } catch {
+                    // Ignore partial/incomplete chunks
+                }
+            }
+        }
+
+        chatHistory.push({ role: 'assistant', content: fullAiText, ts: Date.now() });
+        if (chatHistory.length > 400) chatHistory = chatHistory.slice(-400);
+
+        res.write('data: [DONE]\n\n');
+        res.end();
+    } catch (err) {
+        console.error('Chat stream error:', err);
+        res.write(`data: ${JSON.stringify({ error: err.message || 'Chat error' })}\n\n`);
+        res.end();
+    }
 });
 
 // --- Stats ---
