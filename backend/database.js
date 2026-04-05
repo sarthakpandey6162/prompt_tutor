@@ -29,6 +29,20 @@ function writeJSON(filePath, data) {
 }
 
 function initDatabase() {
+    // Schema migration equivalent for JSON storage: ensure `saved` and `tags` exist on all rows.
+    const prompts = readJSON(DB_PATH);
+    let touched = false;
+    prompts.forEach((p) => {
+        if (typeof p.saved !== 'boolean') {
+            p.saved = typeof p.isSaved === 'boolean' ? p.isSaved : false;
+            touched = true;
+        }
+        if (!Array.isArray(p.tags)) {
+            p.tags = [];
+            touched = true;
+        }
+    });
+    if (touched) writeJSON(DB_PATH, prompts);
     console.log('✅ JSON Database initialized');
 }
 
@@ -81,6 +95,9 @@ function saveAnalysis(promptText, analysis) {
         improved: impDefault,
         improvedDeveloper: impDev,
         improvedBeginner: impBeg,
+        saved: false,
+        isSaved: false,
+        tags: [],
         created_at: new Date().toISOString()
     };
     
@@ -102,6 +119,17 @@ function deleteHistoryItem(id) {
     let prompts = readJSON(DB_PATH);
     prompts = prompts.filter(p => p.id !== id);
     writeJSON(DB_PATH, prompts);
+}
+
+function updateHistoryItem(id, updates) {
+    let prompts = readJSON(DB_PATH);
+    const index = prompts.findIndex(p => p.id === id);
+    if (index !== -1) {
+        prompts[index] = { ...prompts[index], ...updates };
+        writeJSON(DB_PATH, prompts);
+        return prompts[index];
+    }
+    return null;
 }
 
 function clearHistory() {
@@ -146,7 +174,9 @@ function importHistory(entries, mode = 'merge') {
             improved: raw.improved || raw.improved_prompt || '',
             improvedDeveloper: raw.improvedDeveloper || raw.improved || raw.improved_prompt || '',
             improvedBeginner: raw.improvedBeginner || raw.improved || raw.improved_prompt || '',
-            isSaved: !!raw.isSaved,
+            saved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
+            isSaved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
+            tags: Array.isArray(raw.tags) ? raw.tags : [],
             created_at: createdAt
         });
 
@@ -207,13 +237,18 @@ function getStats() {
         if (el.context) elementUsage.context++;
     });
 
+    const last5Average = recent.length > 0 ? Math.round((recent.reduce((a, b) => a + b, 0) / recent.length) * 10) / 10 : 0;
+    const weakestElement = Object.entries(elementUsage).sort((a, b) => a[1] - b[1])[0]?.[0] || 'examples';
+
     return {
         totalAnalyzed: total,
         averageScore: Math.round(avgScore * 10) / 10,
         bestScore: bestScore,
         trend,
         scoreHistory,
-        elementUsage
+        elementUsage,
+        last5Average,
+        weakestElement
     };
 }
 
@@ -249,9 +284,11 @@ function toggleSave(id) {
     const prompts = readJSON(DB_PATH);
     const item = prompts.find(p => p.id === id);
     if (item) {
-        item.isSaved = !item.isSaved;
+        const current = typeof item.saved === 'boolean' ? item.saved : !!item.isSaved;
+        item.saved = !current;
+        item.isSaved = item.saved;
         writeJSON(DB_PATH, prompts);
-        return item.isSaved;
+        return item.saved;
     }
     return null;
 }
@@ -278,6 +315,7 @@ module.exports = {
     getHistory,
     getHistoryById,
     deleteHistoryItem,
+    updateHistoryItem,
     clearHistory,
     getStats,
     getRecentContext,

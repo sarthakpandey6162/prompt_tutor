@@ -332,24 +332,55 @@
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 <input type="text" id="libSearch" class="lib-search" placeholder="Search prompts…">
                             </div>
+                            <div class="sort-shell custom-dropdown lib-tag-filter-shell" id="libTagFilter" data-dd-key="tag" data-dd-value="all">
+                                <button class="sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter prompts by tag">
+                                    <span class="sort-label">Tag</span>
+                                    <span class="sort-value">All Tags</span>
+                                    <span class="sort-caret" aria-hidden="true">▾</span>
+                                </button>
+                                <div class="sort-panel" role="listbox" aria-label="Tag options">
+                                    <button class="sort-option is-selected" type="button" role="option" aria-selected="true" data-value="all">
+                                        <span class="sort-check" aria-hidden="true">✓</span>
+                                        <span class="sort-option-label">All Tags</span>
+                                    </button>
+                                </div>
+                            </div>
                             <div class="filter-grp" id="libFilters">
                                 <button class="filt active" data-f="all">All</button>
                                 <button class="filt" data-f="high">High Quality</button>
                                 <button class="filt" data-f="mid">Needs Work</button>
                                 <button class="filt" data-f="low">Weak</button>
                             </div>
-                            <div class="sort-shell">
-                                <span class="sort-label">Sort</span>
-                                <select id="libSort" class="lib-sort" aria-label="Sort prompts">
-                                    <option value="newest">Newest First</option>
-                                    <option value="oldest">Oldest First</option>
-                                    <option value="score_high">Highest Score</option>
-                                    <option value="score_low">Lowest Score</option>
-                                </select>
-                                <svg class="sort-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                            <div class="sort-shell custom-dropdown" id="libSort" data-dd-key="sort" data-dd-value="newest">
+                                <button class="sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Sort prompts">
+                                    <span class="sort-label">Sort</span>
+                                    <span class="sort-value">Newest First</span>
+                                    <span class="sort-caret" aria-hidden="true">▾</span>
+                                </button>
+                                <div class="sort-panel" role="listbox" aria-label="Sort options">
+                                    <button class="sort-option is-selected" type="button" role="option" aria-selected="true" data-value="newest">
+                                        <span class="sort-check" aria-hidden="true">✓</span>
+                                        <span class="sort-option-label">Newest First</span>
+                                    </button>
+                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="oldest">
+                                        <span class="sort-check" aria-hidden="true">✓</span>
+                                        <span class="sort-option-label">Oldest First</span>
+                                    </button>
+                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="score_high">
+                                        <span class="sort-check" aria-hidden="true">✓</span>
+                                        <span class="sort-option-label">Highest Score</span>
+                                    </button>
+                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="score_low">
+                                        <span class="sort-check" aria-hidden="true">✓</span>
+                                        <span class="sort-option-label">Lowest Score</span>
+                                    </button>
+                                </div>
                             </div>
-                            <button class="btn btn-ghost btn-sm" id="exportBtn">Export JSON</button>
-                            <button class="btn btn-ghost btn-sm" id="importBtn">Import JSON</button>
+                            <div class="data-actions" aria-label="History data actions">
+                                <span class="data-actions-label">Data</span>
+                                <button class="btn btn-ghost btn-sm" id="exportBtn">Export JSON</button>
+                                <button class="btn btn-ghost btn-sm" id="importBtn">Import JSON</button>
+                            </div>
                             <input type="file" id="importInput" accept="application/json" hidden>
                             <button class="btn btn-danger btn-sm" id="clearAllBtn" style="display:none">Clear All</button>
                         </div>
@@ -381,6 +412,7 @@
                         <span class="chart-sub flat" id="trendLabel">-- Stable</span>
                     </div>
                     <p class="chart-desc">Recent analyses over time</p>
+                    <p class="trend-explanation" id="trendExplanation" style="font-size:13px;margin:6px 0 0;color:var(--tx2);"></p>
                     <div class="line-chart-wrap" id="lineChartWrap">
                         <canvas id="lineChart" class="line-chart-canvas"></canvas>
                     </div>
@@ -491,18 +523,33 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
         </div>
-        <div class="demo-mode-row">
-            <div>
-                <p class="demo-mode-title">Demo Mode</p>
-                <p class="demo-mode-sub" id="demoModeHint">Use realistic mock responses for class presentation.</p>
-            </div>
-            <label class="demo-switch" for="demoModeToggle">
-                <input type="checkbox" id="demoModeToggle">
-                <span class="demo-switch-track"></span>
-            </label>
-        </div>
+
         <button class="btn btn-primary btn-full" id="saveKeyBtn">Save Configuration</button>
         <div class="modal-status" id="modalStatus"></div>
+    </div>
+</div>
+
+<!-- Library Result Modal -->
+<div class="modal-wrap" id="libraryModal">
+    <div class="modal-overlay" id="libraryModalOverlay"></div>
+    <div class="modal-card" style="max-width:760px;">
+        <div class="modal-top">
+            <h2>Prompt Result</h2>
+            <button class="modal-x" id="libraryModalX">×</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span class="lc-score" id="libraryModalScore">0/10</span>
+            <span class="lc-cat-badge" id="libraryModalCategory" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--accent-lt);color:var(--accent);"></span>
+        </div>
+        <label class="modal-lbl">Strengths</label>
+        <ul id="libraryModalStrengths" style="margin:0 0 12px 18px;color:var(--tx2);"></ul>
+        <label class="modal-lbl">Weaknesses</label>
+        <ul id="libraryModalWeaknesses" style="margin:0 0 12px 18px;color:var(--tx2);"></ul>
+        <label class="modal-lbl">Tips</label>
+        <ul id="libraryModalTips" style="margin:0 0 12px 18px;color:var(--tx2);"></ul>
+        <label class="modal-lbl">Improved Prompt</label>
+        <pre id="libraryModalImproved" style="white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:10px;background:var(--code-bg);color:var(--tx);"></pre>
+        <button class="btn btn-primary btn-full" id="libraryUseBtn">Use in Editor</button>
     </div>
 </div>
 

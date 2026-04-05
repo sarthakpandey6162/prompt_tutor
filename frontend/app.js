@@ -11,6 +11,7 @@ class App {
         this.originalPrompt = '';
         this.variant = 'default';
         this.filter = 'all';
+        this.tagFilter = 'all';
         this.searchQuery = '';
         this.sortMode = 'newest';
         this.analysisMode = 'balanced';
@@ -34,6 +35,8 @@ class App {
         this.challengeState = this.loadProgressState('pt_challenges_completed');
         this.activeLessonId = null;
         this.activeChallengeId = null;
+        this.libraryModalData = null;
+        this.activeDropdown = null;
         this.cache();
         this.bind();
     }
@@ -90,6 +93,7 @@ class App {
             libGrid: document.getElementById('libGrid'),
             libEmpty: document.getElementById('libEmpty'),
             libSearch: document.getElementById('libSearch'),
+            libTagFilter: document.getElementById('libTagFilter'),
             libSort: document.getElementById('libSort'),
             exportBtn: document.getElementById('exportBtn'),
             importBtn: document.getElementById('importBtn'),
@@ -118,6 +122,14 @@ class App {
             demoModeHint: document.getElementById('demoModeHint'),
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
+            libraryModal: document.getElementById('libraryModal'),
+            libraryModalOverlay: document.getElementById('libraryModalOverlay'),
+            libraryModalX: document.getElementById('libraryModalX'),
+            libraryModalScore: document.getElementById('libraryModalScore'),
+            libraryModalStrengths: document.getElementById('libraryModalStrengths'),
+            libraryModalWeaknesses: document.getElementById('libraryModalWeaknesses'),
+            libraryModalImproved: document.getElementById('libraryModalImproved'),
+            libraryUseBtn: document.getElementById('libraryUseBtn'),
             // Toast
             toastStack: document.getElementById('toastStack'),
             // Tour
@@ -158,7 +170,8 @@ class App {
             chatInput: document.getElementById('chatInput'),
             chatSendBtn: document.getElementById('chatSendBtn'),
             chatClearBtn: document.getElementById('chatClearBtn'),
-            chatModelSelect: document.getElementById('chatModelSelect')
+            chatModelSelect: document.getElementById('chatModelSelect'),
+            dropdowns: document.querySelectorAll('.custom-dropdown')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -221,7 +234,7 @@ class App {
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
         this.$.libSearch.addEventListener('input', () => { this.searchQuery = this.$.libSearch.value.trim().toLowerCase(); this.renderLib(); });
-        this.$.libSort?.addEventListener('change', () => { this.sortMode = this.$.libSort.value; this.renderLib(); });
+        this.bindCustomDropdowns();
         this.$.exportBtn?.addEventListener('click', () => this.exportHistory());
         this.$.importBtn?.addEventListener('click', () => this.$.importInput?.click());
         this.$.importInput?.addEventListener('change', (e) => this.importHistoryFile(e));
@@ -230,6 +243,9 @@ class App {
         this.$.modalX.addEventListener('click', () => this.closeModal());
         this.$.saveKeyBtn.addEventListener('click', () => this.saveKey());
         this.$.demoModeToggle?.addEventListener('change', (e) => this.setDemoMode(!!e.target.checked));
+        this.$.libraryModalOverlay?.addEventListener('click', () => this.closeLibraryModal());
+        this.$.libraryModalX?.addEventListener('click', () => this.closeLibraryModal());
+        this.$.libraryUseBtn?.addEventListener('click', () => this.useLibraryInEditor());
         // Eye toggle
         this.$.keyToggle.addEventListener('click', () => {
             const inp = this.$.apiKeyInput;
@@ -491,19 +507,41 @@ class App {
     closeModal() { this.$.modal.classList.remove('open'); }
 
     async checkKey() {
+        const badge = this.$.apiDot;
+        const setBadge = (configured) => {
+            if (!badge) return;
+            badge.textContent = configured ? 'Ready ✓' : 'Not set ✗';
+            badge.classList.toggle('on', configured);
+            badge.style.width = 'auto';
+            badge.style.height = '22px';
+            badge.style.padding = '0 8px';
+            badge.style.borderRadius = '999px';
+            badge.style.display = 'inline-flex';
+            badge.style.alignItems = 'center';
+            badge.style.justifyContent = 'center';
+            badge.style.fontSize = '11px';
+            badge.style.fontWeight = '700';
+            badge.style.color = '#fff';
+            badge.style.lineHeight = '1';
+        };
+
         if (this.isDemoMode()) {
             this.cachedKeyStatus = true;
-            this.$.apiDot.classList.add('on');
+            setBadge(true);
             return;
         }
+
         try {
-            const r = await this.apiFetch(['/settings/apikey/status', '/check-api-key']);
+            const r = await fetch(`${this.API}/settings/apikey/status`);
             const d = await r.json();
             const configured = !!(d.configured || d.hasKey);
             this.cachedKeyStatus = configured;
-            this.$.apiDot.classList.toggle('on', configured);
+            setBadge(configured);
             if (!configured) setTimeout(() => this.openModal(), 1000);
-        } catch (e) {}
+        } catch (e) {
+            this.cachedKeyStatus = false;
+            setBadge(false);
+        }
     }
 
     async saveKey() {
@@ -714,7 +752,26 @@ class App {
         this.$.ringProgress.style.transition = 'stroke-dashoffset 0.8s ease-out, stroke 0.3s ease';
         this.$.ringProgress.style.strokeDashoffset = circ - (s / 10) * circ;
         this.$.ringProgress.style.stroke = s >= 7 ? 'url(#grad-high)' : s >= 4 ? 'url(#grad-mid)' : 'url(#grad-low)';
-        this.$.scoreVal.innerHTML = `${s}<span>/10</span>`;
+
+        if (this._scoreAnimRaf) cancelAnimationFrame(this._scoreAnimRaf);
+        const finalScore = Number(s) || 0;
+        const animDuration = 800;
+        const animStart = performance.now();
+        this.$.scoreVal.innerHTML = `0<span>/10</span>`;
+        const animateScore = (now) => {
+            const progress = Math.min((now - animStart) / animDuration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = Math.round(finalScore * eased * 10) / 10;
+            this.$.scoreVal.innerHTML = `${current}<span>/10</span>`;
+            if (progress < 1) {
+                this._scoreAnimRaf = requestAnimationFrame(animateScore);
+                return;
+            }
+            this._scoreAnimRaf = null;
+            this.$.scoreVal.innerHTML = `${finalScore}<span>/10</span>`;
+        };
+        this._scoreAnimRaf = requestAnimationFrame(animateScore);
+
         this.$.scoreLabel.textContent = a.category || a.scoreLabel || this.sLabel(s);
         this.$.scoreLabel.style.color = this.sColor(s);
         this.$.scoreTone.textContent = a.tone || '—';
@@ -896,14 +953,23 @@ class App {
 
     async loadLib() {
         if (this.isDemoMode()) {
-            this.history = this.getShowcaseHistory();
+            this.history = this.getShowcaseHistory().map((item) => ({
+                ...item,
+                tags: this.normalizeTags(item.tags)
+            }));
+            this.renderTagFilterOptions();
             this.renderLib();
             return;
         }
         try {
             const r = await fetch(`${this.API}/history`);
             const apiHistory = await r.json();
-            this.history = Array.isArray(apiHistory) && apiHistory.length ? apiHistory : this.getShowcaseHistory();
+            const source = Array.isArray(apiHistory) && apiHistory.length ? apiHistory : this.getShowcaseHistory();
+            this.history = source.map((item) => ({
+                ...item,
+                tags: this.normalizeTags(item.tags)
+            }));
+            this.renderTagFilterOptions();
             this.renderLib();
         } catch (e) { this.$.libGrid.innerHTML = ''; this.$.libEmpty.style.display = 'flex'; }
     }
@@ -912,14 +978,24 @@ class App {
         let items = [...this.history];
 
         // Filter by score / saved
-        if (this.filter === 'saved') items = items.filter(i => i.isSaved);
+        if (this.filter === 'saved') items = items.filter(i => i.saved === true || i.isSaved === true);
         else if (this.filter === 'high') items = items.filter(i => i.score >= 7);
         else if (this.filter === 'mid') items = items.filter(i => i.score >= 4 && i.score < 7);
         else if (this.filter === 'low') items = items.filter(i => i.score < 4);
 
+        // Filter by selected tag
+        if (this.tagFilter && this.tagFilter !== 'all') {
+            const targetTag = this.tagFilter.toLowerCase();
+            items = items.filter((i) => this.normalizeTags(i.tags).some((tag) => tag.toLowerCase() === targetTag));
+        }
+
         // Filter by search
         if (this.searchQuery) {
-            items = items.filter(i => i.prompt_text.toLowerCase().includes(this.searchQuery));
+            items = items.filter(i => {
+                const text = String(i.prompt_text || '').toLowerCase();
+                const tagsText = this.normalizeTags(i.tags).join(' ').toLowerCase();
+                return text.includes(this.searchQuery) || tagsText.includes(this.searchQuery);
+            });
         }
 
         // Sort
@@ -938,10 +1014,19 @@ class App {
             const catBadge = i.tone || i.category || 'Neutral';
             const d = new Date(i.created_at);
             const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
-            const isSaved = i.isSaved;
+            const isSaved = i.saved === true || i.isSaved === true;
+            const tags = this.normalizeTags(i.tags);
             const saveIcon = isSaved ? 
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' :
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+
+            const tagsHtml = tags.length
+                ? tags.map(tag => {
+                    const encoded = encodeURIComponent(tag);
+                    const toneClass = this.tagToneClass(tag);
+                    return `<button class="lc-tag ${toneClass}" onclick="event.stopPropagation();app.applyTagFilter('${encoded}')">#${this.esc(tag)}</button>`;
+                }).join('')
+                : '<span class="lc-tag-empty">No tags</span>';
 
             return `<div class="lib-card ${isSaved ? 'is-saved' : ''}" onclick="app.viewItem(${i.id})">
                 <div class="lc-top">
@@ -957,14 +1042,68 @@ class App {
                     </div>
                 </div>
                 <div class="lc-text">${this.esc(i.prompt_text)}</div>
+                <div class="lc-tags">${tagsHtml}</div>
                 <div class="lc-foot">
                     <span class="lc-label">${this.esc(i.category||i.label||i.verdict||this.sLabel(cleanScore))}</span>
-                    <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
+                    <div class="lc-actions">
+                        <button class="lc-tag-btn" onclick="event.stopPropagation();app.editTags(${i.id})" aria-label="Edit tags">Tags</button>
+                        <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
+    }
+
+    renderTagFilterOptions() {
+        if (!this.$.libTagFilter) return;
+        const tags = [...new Set(this.history.flatMap((item) => this.normalizeTags(item.tags)))].sort((a, b) => a.localeCompare(b));
+        const current = this.tagFilter || 'all';
+        const options = [{ value: 'all', label: 'All Tags' }, ...tags.map((tag) => ({ value: tag, label: `#${tag}` }))];
+        const selected = tags.includes(current) ? current : 'all';
+        this.setDropdownOptions(this.$.libTagFilter, options, selected);
+        this.tagFilter = selected;
+    }
+
+    applyTagFilter(encodedTag) {
+        const tag = decodeURIComponent(encodedTag || '').toLowerCase();
+        if (!tag || !this.$.libTagFilter) return;
+        this.tagFilter = tag;
+        this.setDropdownValue(this.$.libTagFilter, tag);
+        this.renderLib();
+    }
+
+    async editTags(id) {
+        const item = this.history.find((i) => Number(i.id) === Number(id));
+        if (!item) return;
+
+        const current = this.normalizeTags(item.tags).join(', ');
+        const rawInput = window.prompt('Add tags separated by commas (example: coding, creative, work)', current);
+        if (rawInput === null) return;
+
+        const tags = this.normalizeTags(rawInput.split(','));
+
+        try {
+            if (!this.isDemoMode()) {
+                const response = await this.apiFetch([`/history/${id}/tags`], {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tags })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || 'Unable to save tags');
+                item.tags = this.normalizeTags(data.tags || tags);
+            } else {
+                item.tags = tags;
+            }
+
+            this.renderTagFilterOptions();
+            this.renderLib();
+            this.toast('Tags updated', 'ok');
+        } catch (error) {
+            this.toast(error.message || 'Failed to update tags', 'err');
+        }
     }
 
     async viewItem(id) {
@@ -972,16 +1111,41 @@ class App {
             const r = await fetch(`${this.API}/history/${id}`);
             if (!r.ok) return;
             const d = await r.json();
-            this.go('craft');
-            this.$.input.value = d.prompt_text;
-            this.originalPrompt = d.prompt_text;
-            this.detect(); this.counts();
-            this.updateAnalyzeButtonState();
-            this.analysis = this.normalizeAnalysis(d, d.prompt_text || '');
-            this.showDiff = false;
-            this.$.diffToggle.classList.remove('active');
-            this.render(this.analysis);
+            const normalized = this.normalizeAnalysis(d, d.prompt_text || '');
+            this.libraryModalData = {
+                prompt_text: d.prompt_text || '',
+                score: normalized.score || 0,
+                strengths: normalized.strengths || [],
+                weaknesses: normalized.missing || [],
+                improved: normalized.improved || ''
+            };
+            this.$.libraryModalScore.textContent = `${this.libraryModalData.score}/10`;
+            this.$.libraryModalStrengths.innerHTML = this.libraryModalData.strengths.length
+                ? this.libraryModalData.strengths.map((x) => `<li>${this.esc(x)}</li>`).join('')
+                : '<li>—</li>';
+            this.$.libraryModalWeaknesses.innerHTML = this.libraryModalData.weaknesses.length
+                ? this.libraryModalData.weaknesses.map((x) => `<li>${this.esc(x)}</li>`).join('')
+                : '<li>—</li>';
+            this.$.libraryModalImproved.textContent = this.libraryModalData.improved || '—';
+            this.$.libraryModal.classList.add('open');
         } catch (e) {}
+    }
+
+    closeLibraryModal() {
+        this.$.libraryModal?.classList.remove('open');
+    }
+
+    useLibraryInEditor() {
+        if (!this.libraryModalData) return;
+        this.go('craft');
+        this.$.input.value = this.libraryModalData.improved || this.libraryModalData.prompt_text || '';
+        this.detect();
+        this.counts();
+        this.updateAnalyzeButtonState();
+        this.$.input.focus();
+        this.saveDraft();
+        this.closeLibraryModal();
+        this.toast('Loaded into editor', 'ok');
     }
 
     async delItem(id) {
@@ -992,15 +1156,23 @@ class App {
 
     async toggleSave(id) {
         try {
-            const r = await this.apiFetch([`/history/${id}/save`], { method: 'PATCH' });
+            let r = await fetch(`${this.API}/history/${id}/save`, { method: 'POST' });
+            if (r.status === 404) {
+                r = await fetch(`${this.API}/history/${id}/save`, { method: 'PATCH' });
+            }
             if (r.ok) {
                 const res = await r.json();
                 // Update local model
                 const item = this.history.find(i => i.id === id);
-                if (item) item.isSaved = res.isSaved;
+                if (item) {
+                    const nextSaved = typeof res.saved === 'boolean' ? res.saved : !!res.isSaved;
+                    item.saved = nextSaved;
+                    item.isSaved = nextSaved;
+                }
                 // Re-render
                 this.renderLib();
-                this.toast(res.isSaved ? 'Prompt Saved' : 'Prompt Removed', 'ok');
+                const nowSaved = typeof res.saved === 'boolean' ? res.saved : !!res.isSaved;
+                this.toast(nowSaved ? 'Prompt Saved' : 'Prompt Removed', 'ok');
             }
         } catch (e) {
             this.toast('Failed to save', 'err');
@@ -1857,6 +2029,159 @@ class App {
         return 'Needs Major Work';
     }
 
+    normalizeTags(tags) {
+        if (!Array.isArray(tags)) return [];
+        return [...new Set(tags
+            .map((tag) => String(tag || '').trim().toLowerCase())
+            .filter(Boolean))]
+            .slice(0, 12);
+    }
+
+    tagToneClass(tag) {
+        const input = String(tag || '');
+        let hash = 0;
+        for (let i = 0; i < input.length; i++) {
+            hash = ((hash << 5) - hash) + input.charCodeAt(i);
+            hash |= 0;
+        }
+        return `tone-${Math.abs(hash) % 5}`;
+    }
+
+    bindCustomDropdowns() {
+        if (!this.$.dropdowns?.length) return;
+
+        this.$.dropdowns.forEach((dropdown) => {
+            const trigger = dropdown.querySelector('.sort-trigger');
+            if (!trigger) return;
+
+            trigger.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (this.activeDropdown === dropdown) {
+                    this.closeDropdown(dropdown);
+                    return;
+                }
+                this.openDropdown(dropdown);
+            });
+
+            trigger.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    trigger.click();
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    this.closeDropdown(dropdown);
+                }
+            });
+
+            dropdown.querySelectorAll('.sort-option').forEach((option) => {
+                option.addEventListener('click', () => {
+                    this.selectDropdownOption(dropdown, option.dataset.value || '', option.querySelector('.sort-option-label')?.textContent || option.textContent || '');
+                });
+
+                option.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        option.click();
+                    }
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        this.closeDropdown(dropdown);
+                    }
+                });
+            });
+        });
+
+        document.addEventListener('click', () => this.closeDropdown());
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && this.activeDropdown) {
+                this.closeDropdown();
+            }
+        });
+    }
+
+    openDropdown(dropdown) {
+        this.closeDropdown();
+        dropdown.classList.add('open');
+        dropdown.querySelector('.sort-trigger')?.setAttribute('aria-expanded', 'true');
+        this.activeDropdown = dropdown;
+    }
+
+    closeDropdown(dropdown = this.activeDropdown) {
+        if (!dropdown) return;
+        dropdown.classList.remove('open');
+        dropdown.querySelector('.sort-trigger')?.setAttribute('aria-expanded', 'false');
+        if (this.activeDropdown === dropdown) this.activeDropdown = null;
+    }
+
+    setDropdownOptions(dropdown, options, selectedValue) {
+        if (!dropdown) return;
+        const panel = dropdown.querySelector('.sort-panel');
+        if (!panel) return;
+
+        panel.innerHTML = options.map((option) => {
+            const selected = option.value === selectedValue;
+            return `<button class="sort-option ${selected ? 'is-selected' : ''}" type="button" role="option" aria-selected="${selected ? 'true' : 'false'}" data-value="${this.esc(option.value)}">
+                <span class="sort-check" aria-hidden="true">✓</span>
+                <span class="sort-option-label">${this.esc(option.label)}</span>
+            </button>`;
+        }).join('');
+
+        panel.querySelectorAll('.sort-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                this.selectDropdownOption(dropdown, option.dataset.value || '', option.querySelector('.sort-option-label')?.textContent || '');
+            });
+            option.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    option.click();
+                }
+            });
+        });
+
+        this.setDropdownValue(dropdown, selectedValue);
+    }
+
+    setDropdownValue(dropdown, value) {
+        if (!dropdown) return;
+        const options = dropdown.querySelectorAll('.sort-option');
+        let selectedLabel = '';
+
+        options.forEach((option) => {
+            const selected = option.dataset.value === value;
+            option.classList.toggle('is-selected', selected);
+            option.setAttribute('aria-selected', selected ? 'true' : 'false');
+            if (selected) {
+                selectedLabel = option.querySelector('.sort-option-label')?.textContent || '';
+            }
+        });
+
+        if (selectedLabel) {
+            const valueEl = dropdown.querySelector('.sort-value');
+            if (valueEl) valueEl.textContent = selectedLabel;
+        }
+        dropdown.dataset.ddValue = value;
+    }
+
+    selectDropdownOption(dropdown, value, label) {
+        const key = dropdown?.dataset?.ddKey;
+        if (!key) return;
+
+        this.setDropdownValue(dropdown, value);
+
+        if (key === 'sort') {
+            this.sortMode = value;
+            this.renderLib();
+        }
+
+        if (key === 'tag') {
+            this.tagFilter = value || 'all';
+            this.renderLib();
+        }
+
+        this.closeDropdown(dropdown);
+    }
+
     esc(s) { return s ? s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)) : ''; }
 
     toast(msg, type='ok') {
@@ -2077,6 +2402,8 @@ class App {
             improved: r.txt,
             improvedDeveloper: r.txt,
             improvedBeginner: r.txt,
+            tags: idx % 2 === 0 ? ['demo', 'practice'] : ['demo'],
+            saved: idx % 3 === 0,
             isSaved: idx % 3 === 0,
             created_at: new Date(now - idx * 36e5 * 5).toISOString()
         }));

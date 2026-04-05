@@ -12,6 +12,7 @@ const {
     getHistory,
     getHistoryById,
     deleteHistoryItem,
+    updateHistoryItem,
     clearHistory,
     getStats,
     getSetting,
@@ -381,8 +382,32 @@ Respond ONLY with valid JSON:
 // --- Get History ---
 app.get('/api/history', (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
-    const history = getHistory(limit);
+    const tagQuery = String(req.query.tag || '').trim().toLowerCase();
+    let history = getHistory(tagQuery ? Number.MAX_SAFE_INTEGER : limit);
+    if (tagQuery) {
+        history = history.filter((item) =>
+            Array.isArray(item.tags) && item.tags.some((tag) => String(tag).toLowerCase() === tagQuery)
+        );
+    }
+    if (!tagQuery) {
+        history = history.slice(0, limit);
+    }
     res.json(history);
+});
+
+// --- Update History Tags ---
+app.patch('/api/history/:id/tags', (req, res) => {
+    const id = parseInt(req.params.id);
+    const rawTags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const tags = [...new Set(rawTags
+        .map((tag) => String(tag || '').trim().toLowerCase())
+        .filter(Boolean))]
+        .slice(0, 12);
+
+    const updated = updateHistoryItem(id, { tags });
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+
+    res.json({ success: true, id, tags: updated.tags || [] });
 });
 
 // --- Import History ---
@@ -404,10 +429,16 @@ app.get('/api/history/:id', (req, res) => {
 });
 
 // --- Toggle Save Prompts ---
+app.post('/api/history/:id/save', (req, res) => {
+    const isSaved = toggleSave(parseInt(req.params.id));
+    if (isSaved === null) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true, saved: isSaved, isSaved });
+});
+
 app.patch('/api/history/:id/save', (req, res) => {
     const isSaved = toggleSave(parseInt(req.params.id));
     if (isSaved === null) return res.status(404).json({ error: 'Not found' });
-    res.json({ success: true, isSaved });
+    res.json({ success: true, saved: isSaved, isSaved });
 });
 
 // --- Delete History Item ---
@@ -455,6 +486,28 @@ app.post('/api/chat/stream', async (req, res) => {
 
     const selectedModel = model || 'llama-3.1-8b-instant';
 
+    const recentPrompts = getHistory(5).map((p) => ({
+        prompt_text: p.prompt_text,
+        score: p.score,
+        category: p.category,
+        created_at: p.created_at
+    }));
+    const historyJson = JSON.stringify(recentPrompts);
+    const outboundMessages = [...messages];
+    const systemIdx = outboundMessages.findIndex((m) => m?.role === 'system');
+    const contextBlock = `\n\nUSER_PROMPT_HISTORY_JSON:\n${historyJson}\nUse this real user history for personalized guidance when relevant.`;
+    if (systemIdx >= 0) {
+        outboundMessages[systemIdx] = {
+            ...outboundMessages[systemIdx],
+            content: `${outboundMessages[systemIdx].content || ''}${contextBlock}`
+        };
+    } else {
+        outboundMessages.unshift({
+            role: 'system',
+            content: `You are Prompt Tutor Buddy. Use the user's recent prompt history when relevant.${contextBlock}`
+        });
+    }
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -468,7 +521,7 @@ app.post('/api/chat/stream', async (req, res) => {
             },
             body: JSON.stringify({
                 model: selectedModel,
-                messages: messages,
+                messages: outboundMessages,
                 stream: true,
                 temperature: 0.7,
                 max_tokens: 1500

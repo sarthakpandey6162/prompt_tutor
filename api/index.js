@@ -334,6 +334,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
             improvedDeveloper,
             improvedBeginner,
             isSaved: false,
+            tags: [],
             created_at: new Date().toISOString()
         };
 
@@ -349,7 +350,30 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
 
 // --- History ---
 app.get('/api/history', (req, res) => {
-    res.json(promptHistory);
+    const tagQuery = String(req.query?.tag || '').trim().toLowerCase();
+    if (!tagQuery) {
+        return res.json(promptHistory);
+    }
+    res.json(
+        promptHistory.filter((item) =>
+            Array.isArray(item.tags) && item.tags.some((tag) => String(tag).toLowerCase() === tagQuery)
+        )
+    );
+});
+
+app.patch('/api/history/:id/tags', (req, res) => {
+    const id = Number(req.params.id);
+    const item = promptHistory.find(p => Number(p.id) === id);
+    if (!item) return res.status(404).json({ error: 'Not found' });
+
+    const rawTags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const tags = [...new Set(rawTags
+        .map((tag) => String(tag || '').trim().toLowerCase())
+        .filter(Boolean))]
+        .slice(0, 12);
+
+    item.tags = tags;
+    res.json({ success: true, id, tags: item.tags });
 });
 
 app.post('/api/history/import', (req, res) => {
@@ -395,7 +419,8 @@ app.post('/api/history/import', (req, res) => {
             improved: raw.improved || raw.improved_prompt || '',
             improvedDeveloper: raw.improvedDeveloper || raw.improved || raw.improved_prompt || '',
             improvedBeginner: raw.improvedBeginner || raw.improved || raw.improved_prompt || '',
-            isSaved: !!raw.isSaved,
+            saved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
+            isSaved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
             created_at: createdAt
         });
 
@@ -421,8 +446,20 @@ app.patch('/api/history/:id/save', (req, res) => {
     const id = Number(req.params.id);
     const item = promptHistory.find(p => Number(p.id) === id);
     if (!item) return res.status(404).json({ error: 'Not found' });
-    item.isSaved = !item.isSaved;
-    res.json({ success: true, isSaved: item.isSaved });
+    const current = typeof item.saved === 'boolean' ? item.saved : !!item.isSaved;
+    item.saved = !current;
+    item.isSaved = item.saved;
+    res.json({ success: true, saved: item.saved, isSaved: item.isSaved });
+});
+
+app.post('/api/history/:id/save', (req, res) => {
+    const id = Number(req.params.id);
+    const item = promptHistory.find(p => Number(p.id) === id);
+    if (!item) return res.status(404).json({ error: 'Not found' });
+    const current = typeof item.saved === 'boolean' ? item.saved : !!item.isSaved;
+    item.saved = !current;
+    item.isSaved = item.saved;
+    res.json({ success: true, saved: item.saved, isSaved: item.isSaved });
 });
 
 app.delete('/api/history/:id', (req, res) => {
