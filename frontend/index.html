@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Prompt Tutor — Craft perfect AI prompts with instant analysis.">
     <title>Prompt Tutor</title>
-    <link rel="icon" href="logo.png" type="image/png">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
@@ -32,14 +32,13 @@
     </defs>
 </svg>
 <div class="visual-stage" aria-hidden="true">
-    <img src="bg-light-1.png" alt="" class="bg-image bg-light-only" id="bgImage">
-    <img src="bg-light.png" alt="" class="bg-image bg-dark-only" id="bgImageDark">
+    <div class="bg-image bg-light-only" id="bgImage"></div>
 </div>
 <div class="app">
     <!-- ===== SIDEBAR (desktop) ===== -->
     <aside class="sidebar" id="sidebar">
         <div class="sb-head">
-            <img src="logo.png" alt="PT" class="sb-logo">
+            <img src="logo.svg" alt="PT" class="sb-logo">
             <span class="sb-brand">Prompt Tutor</span>
         </div>
         <nav class="sb-nav">
@@ -75,10 +74,6 @@
             <button class="sb-link" data-view="cheatsheet">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                 <span>Cheat Sheet</span>
-            </button>
-            <button class="sb-link" data-view="theme">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <span>Theme</span>
             </button>
         </nav>
         <div class="sb-bottom">
@@ -141,6 +136,18 @@
                             <button class="qb-chip" data-insert="Output format: [table/json/bullets]. ">+ Format</button>
                             <button class="qb-chip" data-insert="Constraints: [word limit, tone, do/don't]. ">+ Constraints</button>
                             <button class="qb-chip" data-insert="Context: [audience, goal, background]. ">+ Context</button>
+                        </div>
+                        <div class="test-lab" id="testLab">
+                            <div class="test-lab-head">
+                                <span class="test-lab-title">Test Lab</span>
+                                <span class="test-health" id="apiHealthBadge">API: Not checked</span>
+                            </div>
+                            <div class="test-lab-actions">
+                                <button class="test-chip" id="testWeakBtn" type="button">Load Weak Prompt</button>
+                                <button class="test-chip" id="testStrongBtn" type="button">Load Strong Prompt</button>
+                                <button class="test-chip" id="testRandomBtn" type="button">Random Prompt</button>
+                                <button class="test-chip" id="testHealthBtn" type="button">Check API Health</button>
+                            </div>
                         </div>
                         <div class="textarea-grow">
                             <textarea id="promptInput" placeholder="Type or paste your prompt here…" spellcheck="false"></textarea>
@@ -299,7 +306,7 @@
                         <!-- Messages go here -->
                         <div class="chat-msg msg-ai">
                             <div class="msg-avatar">🤖</div>
-                            <div class="msg-content">Hey! I am your prompt buddy. Ask me anything about prompts, and you can type commands like "open github.com" or "open settings".</div>
+                            <div class="msg-content">Hey! I am your prompt buddy. Ask me anything about writing better prompts, and I will help improve structure, clarity, and output quality.</div>
                         </div>
                     </div>
                 </div>
@@ -381,8 +388,14 @@
                     <!-- Layout for Split Charts below Line Chart -->
                     <div class="chart-row">
                         <!-- Score Distribution -->
-                        <div class="chart-card fb-card-half">
+                        <div class="chart-card fb-card-half dist-card">
                             <h3 class="chart-h">Score Distribution</h3>
+                            <p class="dist-note">How your prompts are split by quality bands</p>
+                            <div class="dist-legend" aria-hidden="true">
+                                <span class="dist-pill weak" data-band="weak"><span class="dist-icon" aria-hidden="true">⚠</span>Weak</span>
+                                <span class="dist-pill mid" data-band="mid"><span class="dist-icon" aria-hidden="true">◐</span>Needs Work</span>
+                                <span class="dist-pill high" data-band="high"><span class="dist-icon" aria-hidden="true">★</span>High</span>
+                            </div>
                             <div class="chart-canvas-wrap">
                                 <canvas id="barChart"></canvas>
                             </div>
@@ -391,12 +404,9 @@
                         <!-- Element Usage Radar Chart -->
                         <div class="chart-card fb-card-half radar-card">
                             <h3 class="chart-h">Prompt Elements</h3>
-                            <div class="element-bars" id="elementBars">
-                                <div class="element-row"><span class="element-name">Role</span><div class="element-track"><span class="element-fill" id="elRole"></span></div><span class="element-val" id="elRoleVal">0%</span></div>
-                                <div class="element-row"><span class="element-name">Format</span><div class="element-track"><span class="element-fill" id="elFormat"></span></div><span class="element-val" id="elFormatVal">0%</span></div>
-                                <div class="element-row"><span class="element-name">Constraints</span><div class="element-track"><span class="element-fill" id="elConstraints"></span></div><span class="element-val" id="elConstraintsVal">0%</span></div>
-                                <div class="element-row"><span class="element-name">Examples</span><div class="element-track"><span class="element-fill" id="elExamples"></span></div><span class="element-val" id="elExamplesVal">0%</span></div>
-                                <div class="element-row"><span class="element-name">Context</span><div class="element-track"><span class="element-fill" id="elContext"></span></div><span class="element-val" id="elContextVal">0%</span></div>
+                            <div class="radar-wrap">
+                                <canvas id="elementRadar" aria-label="Prompt elements pentagon chart"></canvas>
+                                <p class="radar-note">Coverage across Role, Format, Constraints, Examples, and Context.</p>
                             </div>
                         </div>
                     </div>
@@ -459,66 +469,6 @@
             </div>
         </section>
 
-        <!-- === VIEW: THEME === -->
-        <section class="view" id="view-theme">
-            <div class="page-scroll">
-                <div class="page-wrap">
-                    <h1 class="pg-title">Theme & Appearance</h1>
-                    <p class="pg-sub">Customize looks and feel of Prompt Tutor</p>
-
-                    <!-- Dark / Light Mode -->
-                    <div class="theme-section">
-                        <h3 class="theme-section-title">Color Mode</h3>
-                        <div class="theme-mode-toggle">
-                            <button class="theme-mode-btn" id="lightModeBtn" data-mode="light">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                                <span>Light</span>
-                            </button>
-                            <button class="theme-mode-btn active" id="darkModeBtn" data-mode="dark">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                                <span>Dark</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Light Mode Wallpaper -->
-                    <div class="theme-section">
-                        <h3 class="theme-section-title">Light Mode Wallpaper</h3>
-                        <p class="pg-sub" style="margin-bottom:14px">Choose a background for light mode. Dark mode uses the video background.</p>
-                        <div class="wp-grid-large" id="wpGridLarge">
-                            <button class="wp-card" data-wp="1" title="Warm Peach / Lavender">
-                                <img src="bg-light-1.png" alt="Warm">
-                                <div class="wp-card-info">
-                                    <strong>Warm</strong>
-                                    <span>Peach, lavender, rose gold</span>
-                                </div>
-                            </button>
-                            <button class="wp-card" data-wp="2" title="Cool Indigo / Purple">
-                                <img src="bg-light-2.png" alt="Indigo">
-                                <div class="wp-card-info">
-                                    <strong>Indigo</strong>
-                                    <span>Purple, violet, periwinkle</span>
-                                </div>
-                            </button>
-                            <button class="wp-card" data-wp="3" title="Clean White / Gray">
-                                <img src="bg-light-3.png" alt="Minimal">
-                                <div class="wp-card-info">
-                                    <strong>Minimal</strong>
-                                    <span>Clean white, light gray</span>
-                                </div>
-                            </button>
-                            <button class="wp-card" data-wp="4" title="Gradient Mesh">
-                                <img src="bg-light-4.png" alt="Mesh">
-                                <div class="wp-card-info">
-                                    <strong>Mesh</strong>
-                                    <span>Multi-color pastel gradient</span>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
     </main>
 </div>
 
@@ -540,6 +490,16 @@
             <button class="key-toggle" id="keyToggle" type="button">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
+        </div>
+        <div class="demo-mode-row">
+            <div>
+                <p class="demo-mode-title">Demo Mode</p>
+                <p class="demo-mode-sub" id="demoModeHint">Use realistic mock responses for class presentation.</p>
+            </div>
+            <label class="demo-switch" for="demoModeToggle">
+                <input type="checkbox" id="demoModeToggle">
+                <span class="demo-switch-track"></span>
+            </label>
         </div>
         <button class="btn btn-primary btn-full" id="saveKeyBtn">Save Configuration</button>
         <div class="modal-status" id="modalStatus"></div>

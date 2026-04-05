@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Prompt Tutor logo">
+  <defs>
+    <linearGradient id="ptGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="ptGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ecfeff" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#ecfeff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#ptGrad)"/>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#ptGlow)"/>
+
+  <path d="M64 84c0-11 9-20 20-20h56c28 0 50 22 50 50s-22 50-50 50h-20v28h-20V84h20v60h20c17 0 30-13 30-30s-13-30-30-30H84v108H64V84z" fill="#ffffff"/>
+  <path d="M96 96h44c10 0 18 8 18 18s-8 18-18 18h-20v24h-24V96z" fill="#cffafe"/>
+
+  <path d="M124 172h70v20h-70z" fill="#ffffff" opacity="0.96"/>
+  <path d="M142 148h52v18h-52z" fill="#ffffff" opacity="0.84"/>
+</svg>

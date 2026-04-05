@@ -1,7 +1,7 @@
 /**
  * Prompt Tutor — Linear-style Frontend
  * All 4 pages, loading/skeleton state
- * Dark mode, diff view, search, example dropdown, score improvement chart
+ * Diff view, search, example dropdown, score improvement chart
  */
 
 class App {
@@ -80,6 +80,11 @@ class App {
             exampleTrigger: document.getElementById('exampleTrigger'),
             exampleMenu: document.getElementById('exampleMenu'),
             quickChips: document.querySelectorAll('.qb-chip'),
+            testWeakBtn: document.getElementById('testWeakBtn'),
+            testStrongBtn: document.getElementById('testStrongBtn'),
+            testRandomBtn: document.getElementById('testRandomBtn'),
+            testHealthBtn: document.getElementById('testHealthBtn'),
+            apiHealthBadge: document.getElementById('apiHealthBadge'),
             loadingText: document.querySelector('.loading-text'),
             // Library
             libGrid: document.getElementById('libGrid'),
@@ -99,17 +104,9 @@ class App {
             barChart: document.getElementById('barChart'),
             lineChartWrap: document.getElementById('lineChartWrap'),
             lineChart: document.getElementById('lineChart'),
+            elementRadar: document.getElementById('elementRadar'),
             trendLabel: document.getElementById('trendLabel'),
-            elRole: document.getElementById('elRole'),
-            elFormat: document.getElementById('elFormat'),
-            elConstraints: document.getElementById('elConstraints'),
-            elExamples: document.getElementById('elExamples'),
-            elContext: document.getElementById('elContext'),
-            elRoleVal: document.getElementById('elRoleVal'),
-            elFormatVal: document.getElementById('elFormatVal'),
-            elConstraintsVal: document.getElementById('elConstraintsVal'),
-            elExamplesVal: document.getElementById('elExamplesVal'),
-            elContextVal: document.getElementById('elContextVal'),
+            distPills: document.querySelectorAll('.dist-pill[data-band]'),
             // Modal
             modal: document.getElementById('modal'),
             modalOverlay: document.getElementById('modalOverlay'),
@@ -117,6 +114,8 @@ class App {
             saveKeyBtn: document.getElementById('saveKeyBtn'),
             apiKeyInput: document.getElementById('apiKeyInput'),
             modalStatus: document.getElementById('modalStatus'),
+            demoModeToggle: document.getElementById('demoModeToggle'),
+            demoModeHint: document.getElementById('demoModeHint'),
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
             // Toast
@@ -204,6 +203,10 @@ class App {
         this.$.quickChips.forEach(chip => {
             chip.addEventListener('click', () => this.insertTemplate(chip.dataset.insert || ''));
         });
+        this.$.testWeakBtn?.addEventListener('click', () => this.loadTestPrompt('weak'));
+        this.$.testStrongBtn?.addEventListener('click', () => this.loadTestPrompt('strong'));
+        this.$.testRandomBtn?.addEventListener('click', () => this.loadRandomTestPrompt());
+        this.$.testHealthBtn?.addEventListener('click', () => this.runApiHealthCheck());
         // Actions
         this.$.clearBtn.addEventListener('click', () => this.clear());
         this.$.analyzeBtn.addEventListener('click', () => this.analyze());
@@ -226,19 +229,11 @@ class App {
         this.$.modalOverlay.addEventListener('click', () => this.closeModal());
         this.$.modalX.addEventListener('click', () => this.closeModal());
         this.$.saveKeyBtn.addEventListener('click', () => this.saveKey());
+        this.$.demoModeToggle?.addEventListener('change', (e) => this.setDemoMode(!!e.target.checked));
         // Eye toggle
         this.$.keyToggle.addEventListener('click', () => {
             const inp = this.$.apiKeyInput;
             inp.type = inp.type === 'password' ? 'text' : 'password';
-        });
-
-        // Theme page — mode toggle buttons
-        document.getElementById('lightModeBtn')?.addEventListener('click', () => this.setThemeMode('light'));
-        document.getElementById('darkModeBtn')?.addEventListener('click', () => this.setThemeMode('dark'));
-
-        // Theme page — wallpaper cards
-        document.querySelectorAll('.wp-card').forEach(btn => {
-            btn.addEventListener('click', () => this.setWallpaper(btn.dataset.wp));
         });
 
         // Tour
@@ -279,8 +274,8 @@ class App {
     }
 
     async init() {
-        this.loadTheme();
-        this.loadWallpaper();
+        document.documentElement.setAttribute('data-theme', 'light');
+        this.syncDemoModeUI();
         this.checkKey();
         this.loadBadge();
         this.loadDraft();
@@ -290,29 +285,6 @@ class App {
         this.renderLessonsList();
         this.renderChallengesList();
         this.openTour(false);
-    }
-
-    /* ===== Dark Mode ===== */
-    loadTheme() {
-        const saved = localStorage.getItem('pt_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', saved);
-        this.syncThemeModeButtons(saved);
-    }
-
-    setThemeMode(mode) {
-        document.documentElement.setAttribute('data-theme', mode);
-        localStorage.setItem('pt_theme', mode);
-        this.syncThemeModeButtons(mode);
-        if (document.getElementById('view-stats')?.classList.contains('active')) {
-            this.loadStats();
-        }
-    }
-
-    syncThemeModeButtons(theme) {
-        const lightBtn = document.getElementById('lightModeBtn');
-        const darkBtn = document.getElementById('darkModeBtn');
-        if (lightBtn) lightBtn.classList.toggle('active', theme === 'light');
-        if (darkBtn) darkBtn.classList.toggle('active', theme === 'dark');
     }
 
     /* ===== PromptCraft ===== */
@@ -331,6 +303,31 @@ class App {
         if (btn) btn.disabled = true;
         if (btnTxt) btnTxt.textContent = 'Crafting...';
         if (spinner) spinner.style.display = 'inline-block';
+
+        if (this.isDemoMode()) {
+            const toneTxt = tone ? `Tone: ${tone}. ` : '';
+            const audienceTxt = audience ? `Audience: ${audience}. ` : '';
+            const formatTxt = format ? `Output format: ${format}. ` : '';
+            this._lastCraftedPrompt = `Act as an expert assistant. ${toneTxt}${audienceTxt}${formatTxt}Goal: ${idea}. Include clear steps, constraints, and one concrete example. Keep the final answer concise and presentation-ready.`.trim();
+            document.getElementById('pcEmpty').style.display = 'none';
+            const resultEl = document.getElementById('pcResult');
+            resultEl.style.display = 'flex';
+            document.getElementById('pcResultTitle').textContent = 'Demo Crafted Prompt';
+            document.getElementById('pcPromptText').textContent = this._lastCraftedPrompt;
+            const tipsEl = document.getElementById('pcTips');
+            tipsEl.innerHTML = '';
+            ['Uses role + context for better consistency', 'Adds output constraints to reduce vague answers', 'Includes example-driven clarity for class demo'].forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'pc-tip';
+                div.textContent = t;
+                tipsEl.appendChild(div);
+            });
+            if (btn) btn.disabled = !idea;
+            if (btnTxt) btnTxt.textContent = 'Generate Prompt';
+            if (spinner) spinner.style.display = 'none';
+            this.toast('Demo prompt crafted', 'ok');
+            return;
+        }
 
         try {
             const resp = await fetch('/api/craft-prompt', {
@@ -398,26 +395,6 @@ class App {
             editor.dispatchEvent(new Event('input', { bubbles: true }));
         }
         this.toast('Prompt loaded into editor!', 'success');
-    }
-
-    /* ===== Wallpaper Picker ===== */
-    setWallpaper(id) {
-        localStorage.setItem('pt_wallpaper', id);
-        this.applyWallpaper(id);
-    }
-
-    loadWallpaper() {
-        const id = localStorage.getItem('pt_wallpaper') || '1';
-        this.applyWallpaper(id);
-    }
-
-    applyWallpaper(id) {
-        const img = document.getElementById('bgImage');
-        if (img) img.src = `bg-light-${id}.png`;
-        // Update active state on wallpaper cards
-        document.querySelectorAll('.wp-card').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.wp === id);
-        });
     }
 
     getLessons() {
@@ -507,11 +484,6 @@ class App {
         if (actualView === 'challenges') this.renderChallengesList();
         if (actualView === 'chat') this.loadChat();
         if (actualView === 'cheatsheet') this.buildCheatSheet();
-        if (actualView === 'theme') {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-            this.syncThemeModeButtons(currentTheme);
-            this.loadWallpaper();
-        }
     }
 
     /* ===== API Key ===== */
@@ -519,6 +491,11 @@ class App {
     closeModal() { this.$.modal.classList.remove('open'); }
 
     async checkKey() {
+        if (this.isDemoMode()) {
+            this.cachedKeyStatus = true;
+            this.$.apiDot.classList.add('on');
+            return;
+        }
         try {
             const r = await this.apiFetch(['/settings/apikey/status', '/check-api-key']);
             const d = await r.json();
@@ -625,6 +602,12 @@ class App {
             this.showErr('Please wait a second before running another analysis.');
             return;
         }
+
+        if (this.isDemoMode()) {
+            this.runDemoAnalysis(prompt);
+            return;
+        }
+
         const estimate = this.estimateTokensForPrompt(prompt, this.analysisMode);
         if ((this.tokenBudget?.remaining ?? 0) < estimate) {
             this.showErr('Budget too low right now. Please wait about 1 minute and try again.');
@@ -896,18 +879,31 @@ class App {
 
     /* ===== Library ===== */
     async loadBadge() {
+        if (this.isDemoMode()) {
+            const demos = this.getShowcaseHistory();
+            this.$.badge.textContent = demos.length;
+            this.$.badge.style.display = demos.length > 0 ? 'inline-block' : 'none';
+            return;
+        }
         try {
             const r = await fetch(`${this.API}/history`);
             const d = await r.json();
-            this.$.badge.textContent = d.length;
-            this.$.badge.style.display = d.length > 0 ? 'inline-block' : 'none';
+            const viewData = Array.isArray(d) && d.length ? d : this.getShowcaseHistory();
+            this.$.badge.textContent = viewData.length;
+            this.$.badge.style.display = viewData.length > 0 ? 'inline-block' : 'none';
         } catch (e) {}
     }
 
     async loadLib() {
+        if (this.isDemoMode()) {
+            this.history = this.getShowcaseHistory();
+            this.renderLib();
+            return;
+        }
         try {
             const r = await fetch(`${this.API}/history`);
-            this.history = await r.json();
+            const apiHistory = await r.json();
+            this.history = Array.isArray(apiHistory) && apiHistory.length ? apiHistory : this.getShowcaseHistory();
             this.renderLib();
         } catch (e) { this.$.libGrid.innerHTML = ''; this.$.libEmpty.style.display = 'flex'; }
     }
@@ -1076,10 +1072,29 @@ class App {
 
     /* ===== Stats ===== */
     async loadStats() {
+        if (this.isDemoMode()) {
+            const showcase = this.getShowcaseHistory();
+            const stats = this.buildStatsFromHistory(showcase);
+            this.$.sTot.textContent = stats.totalAnalyzed;
+            this.$.sAvg.textContent = stats.averageScore;
+            this.$.sBest.textContent = stats.bestScore;
+            this.$.sWeek.textContent = stats.thisWeek;
+            this.renderDistributionChart({ weak: stats.weak, mid: stats.mid, high: stats.high, total: stats.totalAnalyzed || 1 });
+            this.renderLineChart(stats.scoreHistory || []);
+            if (this.$.trendLabel) {
+                if (stats.trend === 'improving') { this.$.trendLabel.textContent = '↑ Improving'; this.$.trendLabel.className = 'chart-sub up'; }
+                else if (stats.trend === 'declining') { this.$.trendLabel.textContent = '↓ Declining'; this.$.trendLabel.className = 'chart-sub down'; }
+                else { this.$.trendLabel.textContent = '→ Stable'; this.$.trendLabel.className = 'chart-sub flat'; }
+            }
+            this.renderElementRadar(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || 1);
+            return;
+        }
+
         try {
             const [sr, hr] = await Promise.all([fetch(`${this.API}/stats`), fetch(`${this.API}/history`)]);
             const stats = await sr.json();
-            const hist = await hr.json();
+            const histRaw = await hr.json();
+            const hist = Array.isArray(histRaw) && histRaw.length ? histRaw : this.getShowcaseHistory();
 
             this.$.sTot.textContent = stats.totalAnalyzed || 0;
             this.$.sAvg.textContent = stats.averageScore || 0;
@@ -1106,7 +1121,7 @@ class App {
                 else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
             }
 
-            this.renderElementUsageBars(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || hist.length || 0);
+            this.renderElementRadar(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || hist.length || 0);
         } catch (e) {}
     }
 
@@ -1139,6 +1154,10 @@ class App {
         grad.addColorStop(0, isDark ? 'rgba(34, 211, 238, 0.34)' : 'rgba(14, 165, 164, 0.28)');
         grad.addColorStop(1, isDark ? 'rgba(34, 211, 238, 0.03)' : 'rgba(14, 165, 164, 0.02)');
 
+        const lineGrad = ctx.createLinearGradient(0, 0, ctx.canvas.width || 600, 0);
+        lineGrad.addColorStop(0, isDark ? '#22d3ee' : '#0ea5a4');
+        lineGrad.addColorStop(1, isDark ? '#34d399' : '#0f766e');
+
         this.charts.line = new Chart(ctx, {
             type: 'line',
             data: {
@@ -1146,7 +1165,7 @@ class App {
                 datasets: [{
                     label: 'Score',
                     data,
-                    borderColor: accent,
+                    borderColor: lineGrad,
                     backgroundColor: grad,
                     fill: true,
                     tension: 0.42,
@@ -1154,6 +1173,7 @@ class App {
                     borderWidth: 3,
                     pointRadius: 3,
                     pointHoverRadius: 6,
+                    pointHoverBorderWidth: 3,
                     pointBackgroundColor: this.css('--card-solid'),
                     pointBorderColor: accent,
                     pointBorderWidth: 2
@@ -1168,7 +1188,7 @@ class App {
                         min: 0,
                         max: 10,
                         ticks: { color: this.css('--tx3'), stepSize: 2, padding: 8 },
-                        grid: { color: this.css('--border-lt'), drawBorder: false }
+                        grid: { color: this.css('--border-lt'), drawBorder: false, borderDash: [5, 5] }
                     },
                     x: {
                         ticks: { color: this.css('--tx3'), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
@@ -1195,78 +1215,59 @@ class App {
         });
     }
 
-    renderElementUsageBars(usage, total) {
+    renderElementRadar(usage, total) {
+        if (!window.Chart || !this.$.elementRadar) return;
+        this.destroyChart('radar');
+
         const safeTotal = Number(total) > 0 ? Number(total) : 1;
-        const rows = [
-            ['role', this.$.elRole, this.$.elRoleVal],
-            ['format', this.$.elFormat, this.$.elFormatVal],
-            ['constraints', this.$.elConstraints, this.$.elConstraintsVal],
-            ['examples', this.$.elExamples, this.$.elExamplesVal],
-            ['context', this.$.elContext, this.$.elContextVal]
-        ];
-
-        rows.forEach(([key, fill, val]) => {
-            if (!fill || !val) return;
+        const keys = ['role', 'format', 'constraints', 'examples', 'context'];
+        const labels = ['Role', 'Format', 'Constraints', 'Examples', 'Context'];
+        const values = keys.map((key) => {
             const count = Number(usage[key] || 0);
-            const pct = Math.max(0, Math.min(100, Math.round((count / safeTotal) * 100)));
-            fill.style.width = `${pct}%`;
-            val.textContent = `${pct}%`;
-            fill.title = `${count}/${safeTotal}`;
+            return Math.max(0, Math.min(100, Math.round((count / safeTotal) * 100)));
         });
-    }
 
-    renderDistributionChart({ weak, mid, high, total }) {
-        if (!window.Chart || !this.$.barChart) return;
-        this.destroyChart('bar');
-        const ctx = this.$.barChart.getContext('2d');
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const ctx = this.$.elementRadar.getContext('2d');
 
-        const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
-        const values = [weak, mid, high];
-
-        const gWeak = ctx.createLinearGradient(0, 0, 0, 260);
-        gWeak.addColorStop(0, isDark ? '#fb7185' : '#ef4444');
-        gWeak.addColorStop(1, isDark ? '#f43f5e' : '#dc2626');
-
-        const gMid = ctx.createLinearGradient(0, 0, 0, 260);
-        gMid.addColorStop(0, isDark ? '#fbbf24' : '#f59e0b');
-        gMid.addColorStop(1, isDark ? '#f59e0b' : '#d97706');
-
-        const gHigh = ctx.createLinearGradient(0, 0, 0, 260);
-        gHigh.addColorStop(0, isDark ? '#34d399' : '#10b981');
-        gHigh.addColorStop(1, isDark ? '#10b981' : '#059669');
-
-        this.charts.bar = new Chart(ctx, {
-            type: 'bar',
+        this.charts.radar = new Chart(ctx, {
+            type: 'radar',
             data: {
-                labels: ['Weak', 'Needs Work', 'High'],
+                labels,
                 datasets: [{
+                    label: 'Element Coverage',
                     data: values,
-                    backgroundColor: [gWeak, gMid, gHigh],
-                    hoverBackgroundColor: [isDark ? '#fb7185' : '#f87171', isDark ? '#fbbf24' : '#f59e0b', isDark ? '#34d399' : '#10b981'],
-                    borderRadius: 14,
-                    borderSkipped: false
+                    borderColor: isDark ? '#22d3ee' : '#0ea5a4',
+                    backgroundColor: isDark ? 'rgba(34, 211, 238, 0.20)' : 'rgba(14, 165, 164, 0.18)',
+                    pointBackgroundColor: isDark ? '#5eead4' : '#0f766e',
+                    pointBorderColor: this.css('--card-solid'),
+                    pointHoverBackgroundColor: this.css('--card-solid'),
+                    pointHoverBorderColor: isDark ? '#22d3ee' : '#0ea5a4',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    borderWidth: 2.5,
+                    fill: true
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { duration: 700, easing: 'easeOutQuart' },
-                datasets: {
-                    bar: {
-                        barPercentage: 0.64,
-                        categoryPercentage: 0.62
-                    }
-                },
+                animation: { duration: 800, easing: 'easeOutQuart' },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: this.css('--tx3'), precision: 0, padding: 8 },
-                        grid: { color: this.css('--border-lt'), drawBorder: false }
-                    },
-                    x: {
-                        ticks: { color: this.css('--tx2'), font: { weight: '600' } },
-                        grid: { display: false }
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 20,
+                            display: false,
+                            backdropColor: 'transparent'
+                        },
+                        angleLines: { color: this.css('--border-lt') },
+                        grid: { color: this.css('--border-lt'), circular: false },
+                        pointLabels: {
+                            color: this.css('--tx2'),
+                            font: { size: 12, weight: '600' }
+                        }
                     }
                 },
                 plugins: {
@@ -1280,6 +1281,184 @@ class App {
                         cornerRadius: 10,
                         padding: 10,
                         callbacks: {
+                            label: (ctx2) => `${ctx2.label}: ${ctx2.raw}%`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    renderDistributionChart({ weak, mid, high, total }) {
+        if (!window.Chart || !this.$.barChart) return;
+        this.destroyChart('bar');
+        const ctx = this.$.barChart.getContext('2d');
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+        const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
+        const values = [weak, mid, high];
+        const maxVal = Math.max(...values, 1);
+
+        const gWeak = ctx.createLinearGradient(0, 0, 0, 260);
+        gWeak.addColorStop(0, isDark ? '#fb7185' : '#ef4444');
+        gWeak.addColorStop(1, isDark ? '#f43f5e' : '#dc2626');
+
+        const gMid = ctx.createLinearGradient(0, 0, 0, 260);
+        gMid.addColorStop(0, isDark ? '#fbbf24' : '#f59e0b');
+        gMid.addColorStop(1, isDark ? '#f59e0b' : '#d97706');
+
+        const gHigh = ctx.createLinearGradient(0, 0, 0, 260);
+        gHigh.addColorStop(0, isDark ? '#34d399' : '#10b981');
+        gHigh.addColorStop(1, isDark ? '#10b981' : '#059669');
+
+        const distributionFx = {
+            id: 'distributionFx',
+            afterDatasetsDraw: (chart) => {
+                const { ctx: c } = chart;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data?.length) return;
+                c.save();
+                c.font = '600 11px Manrope, sans-serif';
+                c.textAlign = 'center';
+                c.textBaseline = 'bottom';
+
+                const drawBadge = (x, y, text, color) => {
+                    const padX = 8;
+                    const h = 20;
+                    const w = c.measureText(text).width + padX * 2;
+                    const r = 8;
+                    const bx = x - w / 2;
+                    const by = y - h;
+
+                    c.save();
+                    c.beginPath();
+                    c.moveTo(bx + r, by);
+                    c.lineTo(bx + w - r, by);
+                    c.quadraticCurveTo(bx + w, by, bx + w, by + r);
+                    c.lineTo(bx + w, by + h - r);
+                    c.quadraticCurveTo(bx + w, by + h, bx + w - r, by + h);
+                    c.lineTo(bx + r, by + h);
+                    c.quadraticCurveTo(bx, by + h, bx, by + h - r);
+                    c.lineTo(bx, by + r);
+                    c.quadraticCurveTo(bx, by, bx + r, by);
+                    c.closePath();
+                    c.fillStyle = isDark ? 'rgba(8, 23, 32, 0.88)' : 'rgba(255, 255, 255, 0.9)';
+                    c.fill();
+                    c.strokeStyle = color;
+                    c.lineWidth = 1;
+                    c.stroke();
+                    c.restore();
+
+                    c.fillStyle = this.css('--tx2');
+                    c.fillText(text, x, by + h - 6);
+                };
+
+                meta.data.forEach((bar, idx) => {
+                    const value = values[idx] || 0;
+                    const x = bar.x;
+                    const y = bar.y;
+                    const glow = idx === 2 ? '#34d399' : idx === 1 ? '#fbbf24' : '#fb7185';
+
+                    if (value === maxVal && value > 0) {
+                        c.save();
+                        c.globalAlpha = isDark ? 0.34 : 0.2;
+                        c.fillStyle = glow;
+                        c.beginPath();
+                        c.ellipse(x, y - 10, 24, 10, 0, 0, Math.PI * 2);
+                        c.fill();
+                        c.restore();
+                    }
+
+                    drawBadge(x, y - 8, `${value} (${pct(value)}%)`, glow);
+                });
+                c.restore();
+            },
+            beforeDatasetDraw: (chart, args) => {
+                if (args.index !== 0) return;
+                const bars = chart.getDatasetMeta(0)?.data || [];
+                const c = chart.ctx;
+                c.save();
+                bars.forEach((bar, idx) => {
+                    const color = idx === 2 ? '#34d399' : idx === 1 ? '#fbbf24' : '#fb7185';
+                    c.shadowBlur = 18;
+                    c.shadowColor = isDark ? color : 'rgba(0,0,0,0)';
+                });
+                c.restore();
+            },
+            afterEvent: (chart, args) => {
+                const ev = args?.event;
+                const active = chart.tooltip?.getActiveElements?.() || [];
+                const map = ['weak', 'mid', 'high'];
+                const activeBand = active.length ? map[active[0]?.index] : null;
+                this.$.distPills?.forEach((pill) => {
+                    pill.classList.toggle('active', !!activeBand && pill.dataset.band === activeBand);
+                });
+
+                if (ev?.type === 'mouseout' || ev?.type === 'touchend' || ev?.type === 'touchcancel') {
+                    this.$.distPills?.forEach((pill) => pill.classList.remove('active'));
+                }
+            }
+        };
+
+        this.charts.bar = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Weak', 'Needs Work', 'High'],
+                datasets: [{
+                    data: values,
+                    backgroundColor: [gWeak, gMid, gHigh],
+                    hoverBackgroundColor: [isDark ? '#fb7185' : '#f87171', isDark ? '#fbbf24' : '#f59e0b', isDark ? '#34d399' : '#10b981'],
+                    borderColor: [isDark ? '#fb7185' : '#ef4444', isDark ? '#fbbf24' : '#f59e0b', isDark ? '#34d399' : '#10b981'],
+                    borderWidth: 1,
+                    borderRadius: 14,
+                    borderSkipped: false,
+                    barThickness: 44,
+                    maxBarThickness: 52
+                }]
+            },
+            plugins: [distributionFx],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 880, easing: 'easeOutQuart' },
+                datasets: {
+                    bar: {
+                        barPercentage: 0.62,
+                        categoryPercentage: 0.58
+                    }
+                },
+                animations: {
+                    y: {
+                        duration: 900,
+                        easing: 'easeOutQuart',
+                        delay: (ctx2) => (ctx2.type === 'data' ? ctx2.dataIndex * 160 : 0)
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: Math.max(3, maxVal + 2),
+                        ticks: { color: this.css('--tx3'), precision: 0, padding: 8 },
+                        grid: { color: this.css('--border-lt'), drawBorder: false, borderDash: [4, 4] }
+                    },
+                    x: {
+                        ticks: { color: this.css('--tx2'), font: { weight: '700' } },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: this.css('--card-solid'),
+                        titleColor: this.css('--tx'),
+                        bodyColor: this.css('--tx2'),
+                        borderColor: this.css('--border'),
+                        borderWidth: 1,
+                        cornerRadius: 12,
+                        padding: 12,
+                        displayColors: false,
+                        callbacks: {
+                            title: (items) => items?.[0]?.label || 'Distribution',
                             label: (ctx2) => `${ctx2.raw} prompts (${pct(ctx2.raw)}%)`
                         }
                     }
@@ -1598,6 +1777,66 @@ class App {
         this.saveDraft();
     }
 
+    loadTestPrompt(type) {
+        const weak = 'Explain AI';
+        const strong = 'Act as a senior prompt engineer. Improve this request for a class project. Context: beginner students, topic is renewable energy. Constraints: under 120 words, simple English, bullet points only. Output format: 1) final prompt 2) why it is better.';
+        this.$.input.value = type === 'strong' ? strong : weak;
+        this.detect();
+        this.counts();
+        this.updateAnalyzeButtonState();
+        this.saveDraft();
+        this.$.input.focus();
+        this.toast(type === 'strong' ? 'Loaded strong test prompt' : 'Loaded weak test prompt', 'ok');
+    }
+
+    loadRandomTestPrompt() {
+        const roles = ['teacher', 'product manager', 'data analyst', 'career coach', 'startup mentor'];
+        const goals = ['summarize a topic', 'create an email', 'build a study plan', 'analyze feedback', 'generate interview questions'];
+        const formats = ['bullet points', 'markdown table', 'JSON', 'numbered list'];
+        const constraints = ['under 120 words', 'exactly 5 points', 'simple language', 'include one example'];
+        const contexts = ['for beginners', 'for class presentation', 'for quick revision', 'for non-technical audience'];
+
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const prompt = `Act as a ${pick(roles)}. Goal: ${pick(goals)}. Output format: ${pick(formats)}. Constraints: ${pick(constraints)}. Context: ${pick(contexts)}.`;
+
+        this.$.input.value = prompt;
+        this.detect();
+        this.counts();
+        this.updateAnalyzeButtonState();
+        this.saveDraft();
+        this.$.input.focus();
+        this.toast('Loaded random test prompt', 'ok');
+    }
+
+    async runApiHealthCheck() {
+        if (!this.$.apiHealthBadge) return;
+        if (this.isDemoMode()) {
+            this.$.apiHealthBadge.textContent = 'API: Demo mode';
+            this.$.apiHealthBadge.classList.remove('err');
+            this.$.apiHealthBadge.classList.add('ok');
+            this.toast('Demo mode is ready', 'ok');
+            return;
+        }
+        this.$.apiHealthBadge.textContent = 'API: Checking...';
+        this.$.apiHealthBadge.classList.remove('ok', 'err');
+        const started = performance.now();
+
+        try {
+            const resp = await fetch(`${this.API}/health`);
+            const elapsed = Math.round(performance.now() - started);
+            if (!resp.ok) throw new Error('Health endpoint failed');
+            const data = await resp.json().catch(() => ({}));
+            if (!data.ok) throw new Error('API not ready');
+            this.$.apiHealthBadge.textContent = `API: OK (${elapsed}ms)`;
+            this.$.apiHealthBadge.classList.add('ok');
+            this.toast('API is healthy', 'ok');
+        } catch (_) {
+            this.$.apiHealthBadge.textContent = 'API: Unavailable';
+            this.$.apiHealthBadge.classList.add('err');
+            this.toast('API health check failed', 'err');
+        }
+    }
+
     showErr(msg) {
         this.$.errMsg.textContent = msg;
         this.$.errBar.style.display = 'flex';
@@ -1631,13 +1870,17 @@ class App {
     /* ===== Chat View ===== */
     async loadChat() {
         if(!this.$.chatList) return;
+        if (this.isDemoMode()) {
+            this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Demo Mode is active. Ask anything about prompt writing and I will respond with class-ready guidance.</div></div>`;
+            return;
+        }
         try {
             const r = await fetch(`${this.API}/chat`);
             const d = await r.json();
             if (Array.isArray(d)) {
                 this.$.chatList.innerHTML = '';
                 if(d.length === 0) {
-                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hey! I am your prompt buddy. Ask me anything about prompts, and you can type commands like "open github.com" or "open settings".</div></div>`;
+                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hey! I am your prompt buddy. Ask me anything about writing better prompts, and I will help improve structure, clarity, and output quality.</div></div>`;
                 } else {
                     d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
                     this.scrollChat();
@@ -1647,6 +1890,10 @@ class App {
     }
 
     async clearChat() {
+        if (this.isDemoMode()) {
+            this.loadChat();
+            return;
+        }
         try {
             await fetch(`${this.API}/chat`, { method: 'DELETE' });
             this.loadChat();
@@ -1671,61 +1918,8 @@ class App {
     getChatSystemPrompt() {
         return {
             role: 'system',
-            content: 'You are Prompt Tutor Buddy: helpful, friendly, and classmate-like. Keep answers clear and practical. Use short explanations, ask clarifying questions when needed, and avoid robotic tone. If user asks to open a website or app section, briefly acknowledge and continue helping.'
+            content: 'You are Prompt Tutor Buddy: helpful, friendly, and classmate-like. Keep answers clear and practical for prompt writing. Focus only on prompt engineering help: improving prompts, finding missing elements (role, format, constraints, examples, context), and giving short actionable feedback.'
         };
-    }
-
-    normalizeUrlCandidate(raw) {
-        const s = String(raw || '').trim();
-        if (!s) return null;
-        if (/^https?:\/\//i.test(s)) return s;
-        if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(s)) return `https://${s}`;
-        return null;
-    }
-
-    runChatLocalCommand(text) {
-        const raw = String(text || '').trim();
-        const lower = raw.toLowerCase();
-        if (!lower.startsWith('open ')) return { handled: false };
-
-        const targetRaw = raw.slice(5).trim();
-        const target = targetRaw.toLowerCase();
-        if (!target) {
-            return { handled: true, reply: 'Tell me what to open, like: open github.com or open settings.' };
-        }
-
-        const viewMap = {
-            craft: 'craft',
-            'tutor chat': 'chat',
-            chat: 'chat',
-            library: 'library',
-            'saved prompts': 'saved',
-            saved: 'saved',
-            lessons: 'lessons',
-            stats: 'stats',
-            challenges: 'challenges',
-            'cheat sheet': 'cheatsheet',
-            cheatsheet: 'cheatsheet',
-            theme: 'theme'
-        };
-
-        if (target === 'settings') {
-            this.openModal();
-            return { handled: true, reply: 'Opened settings for you.' };
-        }
-
-        if (viewMap[target]) {
-            this.go(viewMap[target]);
-            return { handled: true, reply: `Opened ${targetRaw}.` };
-        }
-
-        const url = this.normalizeUrlCandidate(targetRaw);
-        if (url) {
-            window.open(url, '_blank', 'noopener,noreferrer');
-            return { handled: true, reply: `Opened ${url} in a new tab.` };
-        }
-
-        return { handled: true, reply: 'I can open app sections or valid links. Example: open craft, open settings, or open github.com' };
     }
 
     async sendChatMessage() {
@@ -1736,13 +1930,6 @@ class App {
         this.$.chatSendBtn.disabled = true;
 
         this.appendChatBubble('user', text);
-
-        const commandResult = this.runChatLocalCommand(text);
-        if (commandResult.handled) {
-            this.appendChatBubble('assistant', commandResult.reply);
-            this.$.chatSendBtn.disabled = false;
-            return;
-        }
 
         // Append AI thinking bubble with typing indicator
         const aiBubble = document.createElement('div');
@@ -1767,6 +1954,22 @@ class App {
         }
 
         const payloadMessages = [this.getChatSystemPrompt(), ...msgs];
+
+        if (this.isDemoMode()) {
+            const demoReply = this.getDemoChatReply(text);
+            contentDiv.textContent = '';
+            let idx = 0;
+            const tick = setInterval(() => {
+                idx += 2;
+                contentDiv.textContent = demoReply.slice(0, idx);
+                this.scrollChat();
+                if (idx >= demoReply.length) {
+                    clearInterval(tick);
+                    this.$.chatSendBtn.disabled = false;
+                }
+            }, 16);
+            return;
+        }
 
         try {
             const resp = await fetch(`${this.API}/chat/stream`, {
@@ -1822,6 +2025,178 @@ class App {
         } finally {
             this.$.chatSendBtn.disabled = false;
         }
+    }
+
+    isDemoMode() {
+        return localStorage.getItem('pt_demo_mode') === '1';
+    }
+
+    setDemoMode(enabled) {
+        localStorage.setItem('pt_demo_mode', enabled ? '1' : '0');
+        this.syncDemoModeUI();
+        this.checkKey();
+        this.loadBadge();
+        if (document.getElementById('view-library')?.classList.contains('active')) this.loadLib();
+        if (document.getElementById('view-stats')?.classList.contains('active')) this.loadStats();
+        this.toast(enabled ? 'Demo Mode enabled' : 'Demo Mode disabled', 'ok');
+    }
+
+    syncDemoModeUI() {
+        const on = this.isDemoMode();
+        if (this.$.demoModeToggle) this.$.demoModeToggle.checked = on;
+        if (this.$.demoModeHint) {
+            this.$.demoModeHint.textContent = on
+                ? 'Enabled: class-safe mock responses are active.'
+                : 'Use realistic mock responses for class presentation.';
+        }
+    }
+
+    getShowcaseHistory() {
+        const now = Date.now();
+        const rows = [
+            { txt: 'Act as a career coach. Improve this resume summary in 5 bullet points for a software internship.', score: 8.9, category: 'Directive', tone: 'Formal', elements: { role: true, format: true, constraints: true, examples: false, context: true } },
+            { txt: 'Create a 7-day study plan for DBMS for a beginner. Output as a table with topic, practice task, and revision.', score: 8.2, category: 'Analytical', tone: 'Directive', elements: { role: false, format: true, constraints: true, examples: false, context: true } },
+            { txt: 'Write a polite email to professor requesting a project extension due to health reasons.', score: 7.4, category: 'Formal', tone: 'Formal', elements: { role: false, format: true, constraints: false, examples: false, context: true } },
+            { txt: 'Explain quantum computing to a class 10 student using 3 analogies and keep it under 120 words.', score: 8.6, category: 'Creative', tone: 'Analytical', elements: { role: true, format: true, constraints: true, examples: true, context: true } },
+            { txt: 'Debug this JavaScript function and list root cause, fixed code, and test cases.', score: 9.1, category: 'Technical', tone: 'Technical', elements: { role: true, format: true, constraints: true, examples: false, context: true } },
+            { txt: 'Generate 10 startup ideas in AI + sustainability with target users and one-line monetization.', score: 7.8, category: 'Creative', tone: 'Creative', elements: { role: true, format: true, constraints: true, examples: false, context: false } },
+            { txt: 'Summarize this article in exactly 5 bullets and mention one counterargument.', score: 6.8, category: 'Analytical', tone: 'Directive', elements: { role: false, format: true, constraints: true, examples: false, context: false } },
+            { txt: 'Act as a senior PM. Turn user feedback into prioritized feature backlog with impact and effort score.', score: 9.3, category: 'Technical', tone: 'Analytical', elements: { role: true, format: true, constraints: true, examples: false, context: true } }
+        ];
+
+        return rows.map((r, idx) => ({
+            id: 9000 + idx,
+            prompt_text: r.txt,
+            score: r.score,
+            category: r.category,
+            tone: r.tone,
+            elements: r.elements,
+            strengths: ['Clear intent', 'Actionable format'],
+            missing: ['Could include one concrete example'],
+            tips: [{ title: 'Add specificity', description: 'Specify audience and expected output fields.' }],
+            improved: r.txt,
+            improvedDeveloper: r.txt,
+            improvedBeginner: r.txt,
+            isSaved: idx % 3 === 0,
+            created_at: new Date(now - idx * 36e5 * 5).toISOString()
+        }));
+    }
+
+    buildStatsFromHistory(hist) {
+        const list = Array.isArray(hist) ? hist : [];
+        if (!list.length) {
+            return {
+                totalAnalyzed: 0,
+                averageScore: 0,
+                bestScore: 0,
+                thisWeek: 0,
+                weak: 0,
+                mid: 0,
+                high: 0,
+                trend: 'neutral',
+                scoreHistory: [],
+                elementUsage: { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }
+            };
+        }
+
+        const parsed = list.map((p) => ({
+            ...p,
+            cleanScore: parseFloat(String(p.score).split('/')[0]) || 0,
+            cleanDate: p.created_at || new Date().toISOString()
+        }));
+        const totalAnalyzed = parsed.length;
+        const scores = parsed.map((p) => p.cleanScore);
+        const averageScore = Math.round((scores.reduce((a, b) => a + b, 0) / totalAnalyzed) * 10) / 10;
+        const bestScore = Math.max(...scores);
+        const weak = parsed.filter((p) => p.cleanScore < 4).length;
+        const mid = parsed.filter((p) => p.cleanScore >= 4 && p.cleanScore < 7).length;
+        const high = parsed.filter((p) => p.cleanScore >= 7).length;
+
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thisWeek = parsed.filter((p) => new Date(p.cleanDate) >= weekAgo).length;
+
+        const recent = parsed.slice(0, 5).map((p) => p.cleanScore);
+        const older = parsed.slice(5, 10).map((p) => p.cleanScore);
+        let trend = 'neutral';
+        if (recent.length && older.length) {
+            const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+            const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+            if (recentAvg > olderAvg + 0.5) trend = 'improving';
+            else if (recentAvg < olderAvg - 0.5) trend = 'declining';
+        }
+
+        const scoreHistory = parsed.slice(0, 20).reverse().map((p) => ({ score: p.cleanScore, date: p.cleanDate }));
+        const elementUsage = { role: 0, format: 0, constraints: 0, examples: 0, context: 0 };
+        parsed.forEach((p) => {
+            const el = p.elements && Object.values(p.elements).some(Boolean)
+                ? p.elements
+                : this.detectElementsFromText(p.prompt_text);
+            if (el.role) elementUsage.role++;
+            if (el.format) elementUsage.format++;
+            if (el.constraints) elementUsage.constraints++;
+            if (el.examples) elementUsage.examples++;
+            if (el.context) elementUsage.context++;
+        });
+
+        return { totalAnalyzed, averageScore, bestScore, thisWeek, weak, mid, high, trend, scoreHistory, elementUsage };
+    }
+
+    runDemoAnalysis(prompt) {
+        this.originalPrompt = prompt;
+        this.setLoading(true);
+        this.$.emptyState.style.display = 'none';
+        this.$.resultsContent.style.display = 'none';
+        this.$.loadingState.style.display = 'flex';
+
+        const mock = this.getDemoAnalysis(prompt);
+        setTimeout(() => {
+            this.analysis = mock;
+            this.variant = 'default';
+            this.showDiff = false;
+            this.$.diffToggle.classList.remove('active');
+            this.render(mock);
+            this.setLoading(false);
+            this.toast('Demo analysis complete', 'ok');
+        }, 520);
+    }
+
+    getDemoAnalysis(prompt) {
+        const elements = this.detectElementsFromText(prompt);
+        const keys = ['role', 'format', 'constraints', 'examples', 'context'];
+        const onCount = keys.filter((k) => elements[k]).length;
+        const base = 4.8 + onCount * 0.9 + Math.min(1, prompt.length / 1000);
+        const score = Math.max(3.8, Math.min(9.6, Math.round(base * 10) / 10));
+
+        const missing = keys.filter((k) => !elements[k]).slice(0, 3).map((k) => `Add ${k} for stronger clarity.`);
+        const strengths = [];
+        if (elements.role) strengths.push('Clear role assignment improves response quality.');
+        if (elements.format) strengths.push('Output format guidance reduces ambiguity.');
+        if (elements.constraints) strengths.push('Constraints help keep output precise and focused.');
+        if (!strengths.length) strengths.push('Prompt is concise and easy to understand.');
+
+        const improved = `Act as a domain expert. Goal: ${prompt}. Context: audience is undergraduate students preparing for assessment. Output format: concise bullet points with one short example. Constraints: keep under 140 words and avoid jargon.`;
+
+        return {
+            score,
+            category: score >= 8 ? 'Technical' : score >= 7 ? 'Analytical' : 'Directive',
+            scoreLabel: this.sLabel(score),
+            tone: score >= 8 ? 'Analytical' : 'Directive',
+            elements,
+            strengths,
+            missing: missing.length ? missing : ['Great structure. Add one real-world example for even better results.'],
+            tips: [
+                { title: 'Anchor audience', description: 'Mention who this output is for to tune explanation depth.' },
+                { title: 'Constrain response', description: 'Set word/format limits so output stays consistent in evaluation.' }
+            ],
+            improved,
+            improvedDeveloper: `${improved} Return JSON with keys: summary, steps, checks.`,
+            improvedBeginner: `${improved} Use simple language suitable for first-year students.`
+        };
+    }
+
+    getDemoChatReply(text) {
+        return `Nice prompt question. Quick upgrade:\n1) Start with role and objective.\n2) Add output format and strict constraints.\n3) Add context and one example.\n\nFor your message, try: \"Act as an expert tutor. ${text}. Return a concise bullet list with one example and keep it under 120 words.\"`;
     }
 
     saveDraft() { localStorage.setItem('pt_draft', this.$.input.value); }
