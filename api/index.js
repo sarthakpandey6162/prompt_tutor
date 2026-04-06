@@ -7,9 +7,10 @@ app.use(express.json());
 
 // In-memory storage (Vercel serverless = ephemeral filesystem)
 let promptHistory = [];
-let settings = {};
 let chatHistory = [];
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const DEFAULT_GROQ_API_KEY = String(process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim();
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 const TOKEN_LIMIT_PER_MINUTE = 6000;
 const usageWindow = [];
 const MODE_PROFILES = {
@@ -58,34 +59,110 @@ function detectPromptElements(text) {
     };
 }
 
-function getApiKey() {
-    return process.env.GROQ_API_KEY || settings.groq_api_key;
+function getApiKeyFromRequest(req) {
+    const fromHeader = String(req.headers['x-groq-api-key'] || '').trim();
+    if (fromHeader) return fromHeader;
+    const fromBody = String(req.body?.apiKey || '').trim();
+    if (fromBody) return fromBody;
+    return DEFAULT_GROQ_API_KEY;
+}
+
+function getApiKeyCandidates(req) {
+    const fromHeader = String(req.headers['x-groq-api-key'] || '').trim();
+    const fromBody = String(req.body?.apiKey || '').trim();
+    return [fromHeader, fromBody, DEFAULT_GROQ_API_KEY]
+        .filter(Boolean)
+        .filter((k, i, arr) => arr.indexOf(k) === i);
+}
+
+function isAuthError(status) {
+    return status === 401 || status === 403;
+}
+
+async function fetchGroqWithKeyFallback(req, baseBody) {
+    const candidates = getApiKeyCandidates(req);
+    let lastError = null;
+
+    for (const apiKey of candidates) {
+        const response = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(baseBody)
+        });
+
+        if (response.ok) return { response, apiKey };
+
+        const errorData = await response.json().catch(() => ({}));
+        if (isAuthError(response.status)) {
+            lastError = { status: response.status, errorData };
+            continue;
+        }
+
+        return { response, apiKey, errorData };
+    }
+
+    return {
+        response: { ok: false, status: lastError?.status || 401 },
+        apiKey: null,
+        errorData: lastError?.errorData || { error: { message: 'All provided keys failed authentication for this model.' } }
+    };
+}
+
+async function fetchGroqStreamWithKeyFallback(req, baseBody) {
+    const candidates = getApiKeyCandidates(req);
+    let lastError = null;
+
+    for (const apiKey of candidates) {
+        const response = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(baseBody)
+        });
+
+        if (response.ok) return { response, apiKey };
+
+        const errorData = await response.json().catch(() => ({}));
+        if (isAuthError(response.status)) {
+            lastError = { status: response.status, errorData };
+            continue;
+        }
+
+        return { response, apiKey, errorData };
+    }
+
+    return {
+        response: { ok: false, status: lastError?.status || 401 },
+        apiKey: null,
+        errorData: lastError?.errorData || { error: { message: 'All provided keys failed authentication for this model.' } }
+    };
 }
 
 // --- API Key Management ---
 app.post('/api/set-api-key', (req, res) => {
-    const { apiKey } = req.body;
+    const apiKey = String(req.body?.apiKey || '').trim();
     if (!apiKey || apiKey.length < 20) return res.status(400).json({ error: 'Invalid API key' });
-    settings.groq_api_key = apiKey;
-    res.json({ message: 'API key saved successfully' });
+    res.json({ success: true, message: 'API key accepted for this session only' });
 });
 
 app.get('/api/check-api-key', (req, res) => {
-    // Check environment variable first, then in-memory
-    const hasKey = !!(process.env.GROQ_API_KEY || settings.groq_api_key);
-    res.json({ hasKey });
+    res.json({ hasKey: !!DEFAULT_GROQ_API_KEY });
 });
 
 // Settings compatibility aliases
 app.post('/api/settings/apikey', (req, res) => {
-    const { apiKey } = req.body;
+    const apiKey = String(req.body?.apiKey || '').trim();
     if (!apiKey || apiKey.length < 20) return res.status(400).json({ error: 'Invalid API key' });
-    settings.groq_api_key = apiKey;
-    res.json({ success: true, message: 'Saved' });
+    res.json({ success: true, message: 'API key accepted for this session only' });
 });
 
 app.get('/api/settings/apikey/status', (req, res) => {
-    const configured = !!(process.env.GROQ_API_KEY || settings.groq_api_key);
+    const configured = !!DEFAULT_GROQ_API_KEY;
     res.json({ configured, hasKey: configured });
 });
 
@@ -100,8 +177,7 @@ app.post('/api/craft-prompt', async (req, res) => {
         if (!idea || !idea.trim()) return res.status(400).json({ error: 'An idea is required' });
         if (idea.trim().length > 2000) return res.status(400).json({ error: 'Idea too long. Keep it under 2000 characters.' });
 
-        const apiKey = getApiKey();
-        if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
+        if (!getApiKeyFromRequest(req)) return res.status(400).json({ error: 'API key is required for every request. Please enter your Groq API key.' });
 
         const estimatedTokens = estimateRequestTokens(idea, MODE_PROFILES.balanced);
         const budget = getBudgetSnapshot();
@@ -130,50 +206,30 @@ Respond ONLY with valid JSON:
   "tips": ["<tip about why this structure works>", "<another tip>"]
 }`;
 
-        let response = await fetch(GROQ_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'llama-3.1-8b-instant',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
-                ],
-                temperature: 0.7,
-                response_format: { type: 'json_object' },
-                max_tokens: 600
-            })
-        });
+        const craftBody = {
+            model: DEFAULT_GROQ_MODEL,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+            max_tokens: 600
+        };
+
+        let { response, errorData } = await fetchGroqWithKeyFallback(req, craftBody);
 
         if (response.status === 429) {
             await new Promise(r => setTimeout(r, 3000));
-            response = await fetch(GROQ_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.1-8b-instant',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: `Craft a prompt from this idea:\n"""${idea.trim()}"""` }
-                    ],
-                    temperature: 0.7,
-                    response_format: { type: 'json_object' },
-                    max_tokens: 600
-                })
-            });
+            const retry = await fetchGroqWithKeyFallback(req, craftBody);
+            response = retry.response;
+            errorData = retry.errorData;
             if (response.status === 429) {
                 return res.status(429).json({ error: 'API limit reached. Please wait and try again.' });
             }
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
             return res.status(response.status).json({ error: errorData?.error?.message || `API error (${response.status})` });
         }
 
@@ -195,7 +251,7 @@ Respond ONLY with valid JSON:
             return res.status(500).json({ error: 'Invalid AI response. Please try again.' });
         }
 
-        res.json({ success: true, ...result, budget: getBudgetSnapshot() });
+        res.json({ success: true, ...result, model: craftBody.model, budget: getBudgetSnapshot() });
     } catch (error) {
         console.error('Craft prompt error:', error);
         res.status(500).json({ error: error.message || 'Something went wrong.' });
@@ -224,8 +280,7 @@ app.post('/api/analyze', async (req, res) => {
             });
         }
 
-        const apiKey = getApiKey();
-        if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
+        if (!getApiKeyFromRequest(req)) return res.status(400).json({ error: 'API key is required for every request. Please enter your Groq API key.' });
 
         const existing = promptHistory.find(p => p.prompt_text === cleanPrompt);
         if (existing) {
@@ -251,7 +306,7 @@ app.post('/api/analyze', async (req, res) => {
 Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
 
         const requestBody = {
-            model: 'llama-3.1-8b-instant',
+            model: DEFAULT_GROQ_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `Analyze this prompt:\n"""${cleanPrompt}"""` }
@@ -261,24 +316,16 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
             max_tokens: profile.maxTokens
         };
 
-        const fetchOptions = {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        };
-
-        let response = await fetch(GROQ_API_URL, fetchOptions);
+        let { response, errorData } = await fetchGroqWithKeyFallback(req, requestBody);
 
         if (response.status === 429) {
             await new Promise(r => setTimeout(r, 3000));
-            response = await fetch(GROQ_API_URL, fetchOptions);
+            const retry = await fetchGroqWithKeyFallback(req, requestBody);
+            response = retry.response;
+            errorData = retry.errorData;
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
             if (response.status === 401) return res.status(401).json({ error: 'Invalid API key. Please check your Groq API key.' });
             if (response.status === 429) return res.status(429).json({ error: 'Rate limit exceeded. Please wait and try again.' });
             throw new Error(errorData.error?.message || `API error: ${response.status}`);
@@ -341,7 +388,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         promptHistory.unshift(entry);
         if (promptHistory.length > 200) promptHistory = promptHistory.slice(0, 200);
 
-        res.json({ success: true, id: entry.id, analysis: entry, cached: false, mode: selectedMode, tokenUsage: usageTokens, budget: getBudgetSnapshot() });
+        res.json({ success: true, id: entry.id, analysis: entry, cached: false, mode: selectedMode, model: requestBody.model, tokenUsage: usageTokens, budget: getBudgetSnapshot() });
     } catch (error) {
         console.error('Analysis error:', error);
         res.status(500).json({ error: error.message });
@@ -496,31 +543,24 @@ app.post('/api/chat/stream', async (req, res) => {
             if (chatHistory.length > 400) chatHistory = chatHistory.slice(-400);
         }
 
-        const apiKey = getApiKey();
-        if (!apiKey) return res.status(400).json({ error: 'API key not configured' });
+        if (!getApiKeyFromRequest(req)) return res.status(400).json({ error: 'API key is required for every request. Please enter your Groq API key.' });
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
-        const response = await fetch(GROQ_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: model || 'llama-3.1-8b-instant',
-                messages,
-                stream: true,
-                temperature: 0.7,
-                max_tokens: 1500
-            })
-        });
+        const streamBody = {
+            model: model || DEFAULT_GROQ_MODEL,
+            messages,
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 1500
+        };
+
+        const { response, errorData } = await fetchGroqStreamWithKeyFallback(req, streamBody);
 
         if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            res.write(`data: ${JSON.stringify({ error: err?.error?.message || 'API Error' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ error: errorData?.error?.message || 'API Error' })}\n\n`);
             return res.end();
         }
 

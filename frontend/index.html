@@ -332,55 +332,25 @@
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 <input type="text" id="libSearch" class="lib-search" placeholder="Search prompts…">
                             </div>
-                            <div class="sort-shell custom-dropdown lib-tag-filter-shell" id="libTagFilter" data-dd-key="tag" data-dd-value="all">
-                                <button class="sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter prompts by tag">
-                                    <span class="sort-label">Tag</span>
-                                    <span class="sort-value">All Tags</span>
-                                    <span class="sort-caret" aria-hidden="true">▾</span>
-                                </button>
-                                <div class="sort-panel" role="listbox" aria-label="Tag options">
-                                    <button class="sort-option is-selected" type="button" role="option" aria-selected="true" data-value="all">
-                                        <span class="sort-check" aria-hidden="true">✓</span>
-                                        <span class="sort-option-label">All Tags</span>
-                                    </button>
-                                </div>
-                            </div>
                             <div class="filter-grp" id="libFilters">
                                 <button class="filt active" data-f="all">All</button>
                                 <button class="filt" data-f="high">High Quality</button>
                                 <button class="filt" data-f="mid">Needs Work</button>
                                 <button class="filt" data-f="low">Weak</button>
                             </div>
-                            <div class="sort-shell custom-dropdown" id="libSort" data-dd-key="sort" data-dd-value="newest">
-                                <button class="sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Sort prompts">
-                                    <span class="sort-label">Sort</span>
-                                    <span class="sort-value">Newest First</span>
-                                    <span class="sort-caret" aria-hidden="true">▾</span>
-                                </button>
-                                <div class="sort-panel" role="listbox" aria-label="Sort options">
-                                    <button class="sort-option is-selected" type="button" role="option" aria-selected="true" data-value="newest">
-                                        <span class="sort-check" aria-hidden="true">✓</span>
-                                        <span class="sort-option-label">Newest First</span>
-                                    </button>
-                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="oldest">
-                                        <span class="sort-check" aria-hidden="true">✓</span>
-                                        <span class="sort-option-label">Oldest First</span>
-                                    </button>
-                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="score_high">
-                                        <span class="sort-check" aria-hidden="true">✓</span>
-                                        <span class="sort-option-label">Highest Score</span>
-                                    </button>
-                                    <button class="sort-option" type="button" role="option" aria-selected="false" data-value="score_low">
-                                        <span class="sort-check" aria-hidden="true">✓</span>
-                                        <span class="sort-option-label">Lowest Score</span>
-                                    </button>
+                            <div class="sort-shell" id="libSortShell">
+                                <span class="sort-label">Sort</span>
+                                <button class="lib-sort-trigger" id="libSortTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">Newest First</button>
+                                <svg class="sort-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                                <div class="lib-sort-menu" id="libSortMenu" role="listbox" aria-label="Sort prompts">
+                                    <button class="lib-sort-option active" type="button" data-value="newest">Newest First</button>
+                                    <button class="lib-sort-option" type="button" data-value="oldest">Oldest First</button>
+                                    <button class="lib-sort-option" type="button" data-value="score_high">Highest Score</button>
+                                    <button class="lib-sort-option" type="button" data-value="score_low">Lowest Score</button>
                                 </div>
                             </div>
-                            <div class="data-actions" aria-label="History data actions">
-                                <span class="data-actions-label">Data</span>
-                                <button class="btn btn-ghost btn-sm" id="exportBtn">Export JSON</button>
-                                <button class="btn btn-ghost btn-sm" id="importBtn">Import JSON</button>
-                            </div>
+                            <button class="btn btn-ghost btn-sm" id="exportBtn">Export</button>
+                            <button class="btn btn-ghost btn-sm" id="importBtn">Import</button>
                             <input type="file" id="importInput" accept="application/json" hidden>
                             <button class="btn btn-danger btn-sm" id="clearAllBtn" style="display:none">Clear All</button>
                         </div>
@@ -515,7 +485,7 @@
             <h2>Settings</h2>
             <button class="modal-x" id="modalX">×</button>
         </div>
-        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis.</p>
+        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis. The key is used only for this session and is not saved.</p>
         <label class="modal-lbl">API Key</label>
         <div class="key-input-wrap">
             <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
@@ -524,7 +494,7 @@
             </button>
         </div>
 
-        <button class="btn btn-primary btn-full" id="saveKeyBtn">Save Configuration</button>
+        <button class="btn btn-primary btn-full" id="saveKeyBtn">Apply Session Key</button>
         <div class="modal-status" id="modalStatus"></div>
     </div>
 </div>

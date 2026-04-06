@@ -29,16 +29,12 @@ function writeJSON(filePath, data) {
 }
 
 function initDatabase() {
-    // Schema migration equivalent for JSON storage: ensure `saved` and `tags` exist on all rows.
+    // Schema migration equivalent for JSON storage: ensure `saved` exists on all rows.
     const prompts = readJSON(DB_PATH);
     let touched = false;
     prompts.forEach((p) => {
         if (typeof p.saved !== 'boolean') {
             p.saved = typeof p.isSaved === 'boolean' ? p.isSaved : false;
-            touched = true;
-        }
-        if (!Array.isArray(p.tags)) {
-            p.tags = [];
             touched = true;
         }
     });
@@ -97,7 +93,6 @@ function saveAnalysis(promptText, analysis) {
         improvedBeginner: impBeg,
         saved: false,
         isSaved: false,
-        tags: [],
         created_at: new Date().toISOString()
     };
     
@@ -119,17 +114,6 @@ function deleteHistoryItem(id) {
     let prompts = readJSON(DB_PATH);
     prompts = prompts.filter(p => p.id !== id);
     writeJSON(DB_PATH, prompts);
-}
-
-function updateHistoryItem(id, updates) {
-    let prompts = readJSON(DB_PATH);
-    const index = prompts.findIndex(p => p.id === id);
-    if (index !== -1) {
-        prompts[index] = { ...prompts[index], ...updates };
-        writeJSON(DB_PATH, prompts);
-        return prompts[index];
-    }
-    return null;
 }
 
 function clearHistory() {
@@ -176,7 +160,6 @@ function importHistory(entries, mode = 'merge') {
             improvedBeginner: raw.improvedBeginner || raw.improved || raw.improved_prompt || '',
             saved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
             isSaved: typeof raw.saved === 'boolean' ? raw.saved : !!raw.isSaved,
-            tags: Array.isArray(raw.tags) ? raw.tags : [],
             created_at: createdAt
         });
 
@@ -315,7 +298,6 @@ module.exports = {
     getHistory,
     getHistoryById,
     deleteHistoryItem,
-    updateHistoryItem,
     clearHistory,
     getStats,
     getRecentContext,

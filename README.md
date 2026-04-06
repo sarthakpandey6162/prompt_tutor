@@ -92,7 +92,7 @@ This repo is configured for Vercel via vercel.json:
 Important behavior on Vercel:
 
 - Data is in-memory and ephemeral in api/index.js
-- Use environment variable GROQ_API_KEY for reliable key configuration
+- API key is session-only: users must provide it each login/session
 
 ## API Overview
 
@@ -102,8 +102,8 @@ Important behavior on Vercel:
 |---|---|---|
 | GET | /api/health | Service health check |
 | GET | /api/usage | Current token budget snapshot |
-| POST | /api/settings/apikey | Save API key |
-| GET | /api/settings/apikey/status | Check key configuration |
+| POST | /api/settings/apikey | Validate session API key (not persisted) |
+| GET | /api/settings/apikey/status | Always unconfigured (session-only flow) |
 
 Compatibility aliases also exist in serverless API:
 

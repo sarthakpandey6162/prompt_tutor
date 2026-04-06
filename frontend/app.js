@@ -11,7 +11,6 @@ class App {
         this.originalPrompt = '';
         this.variant = 'default';
         this.filter = 'all';
-        this.tagFilter = 'all';
         this.searchQuery = '';
         this.sortMode = 'newest';
         this.analysisMode = 'balanced';
@@ -22,6 +21,8 @@ class App {
         this.history = [];
         this.showDiff = false;
         this.cachedKeyStatus = null;
+        this.sessionApiKey = '';
+        this.backendHasDefaultKey = false;
         this.loadingPhrases = [
             'Analyzing structure...',
             'Checking clarity and constraints...',
@@ -36,7 +37,6 @@ class App {
         this.activeLessonId = null;
         this.activeChallengeId = null;
         this.libraryModalData = null;
-        this.activeDropdown = null;
         this.cache();
         this.bind();
     }
@@ -93,8 +93,9 @@ class App {
             libGrid: document.getElementById('libGrid'),
             libEmpty: document.getElementById('libEmpty'),
             libSearch: document.getElementById('libSearch'),
-            libTagFilter: document.getElementById('libTagFilter'),
-            libSort: document.getElementById('libSort'),
+            libSortShell: document.getElementById('libSortShell'),
+            libSortTrigger: document.getElementById('libSortTrigger'),
+            libSortMenu: document.getElementById('libSortMenu'),
             exportBtn: document.getElementById('exportBtn'),
             importBtn: document.getElementById('importBtn'),
             importInput: document.getElementById('importInput'),
@@ -118,8 +119,7 @@ class App {
             saveKeyBtn: document.getElementById('saveKeyBtn'),
             apiKeyInput: document.getElementById('apiKeyInput'),
             modalStatus: document.getElementById('modalStatus'),
-            demoModeToggle: document.getElementById('demoModeToggle'),
-            demoModeHint: document.getElementById('demoModeHint'),
+
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
             libraryModal: document.getElementById('libraryModal'),
@@ -170,8 +170,7 @@ class App {
             chatInput: document.getElementById('chatInput'),
             chatSendBtn: document.getElementById('chatSendBtn'),
             chatClearBtn: document.getElementById('chatClearBtn'),
-            chatModelSelect: document.getElementById('chatModelSelect'),
-            dropdowns: document.querySelectorAll('.custom-dropdown')
+            chatModelSelect: document.getElementById('chatModelSelect')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -233,8 +232,30 @@ class App {
         // Library
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
-        this.$.libSearch.addEventListener('input', () => { this.searchQuery = this.$.libSearch.value.trim().toLowerCase(); this.renderLib(); });
-        this.bindCustomDropdowns();
+        const libSearchWrap = this.$.libSearch?.closest('.lib-search-wrap');
+        const syncLibSearchTypingState = () => {
+            if (!libSearchWrap || !this.$.libSearch) return;
+            const isTyping = document.activeElement === this.$.libSearch && this.$.libSearch.value.trim().length > 0;
+            libSearchWrap.classList.toggle('is-typing', isTyping);
+        };
+
+        this.$.libSearch.addEventListener('input', () => {
+            this.searchQuery = this.$.libSearch.value.trim().toLowerCase();
+            this.renderLib();
+            syncLibSearchTypingState();
+        });
+        this.$.libSearch.addEventListener('focus', () => syncLibSearchTypingState());
+        this.$.libSearch.addEventListener('blur', () => libSearchWrap?.classList.remove('is-typing'));
+        this.$.libSortTrigger?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleLibSortMenu();
+        });
+        this.$.libSortMenu?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.lib-sort-option');
+            if (!btn) return;
+            this.setLibSortMode(btn.dataset.value, btn.textContent.trim());
+        });
+        document.addEventListener('click', () => this.closeLibSortMenu());
         this.$.exportBtn?.addEventListener('click', () => this.exportHistory());
         this.$.importBtn?.addEventListener('click', () => this.$.importInput?.click());
         this.$.importInput?.addEventListener('change', (e) => this.importHistoryFile(e));
@@ -242,7 +263,7 @@ class App {
         this.$.modalOverlay.addEventListener('click', () => this.closeModal());
         this.$.modalX.addEventListener('click', () => this.closeModal());
         this.$.saveKeyBtn.addEventListener('click', () => this.saveKey());
-        this.$.demoModeToggle?.addEventListener('change', (e) => this.setDemoMode(!!e.target.checked));
+
         this.$.libraryModalOverlay?.addEventListener('click', () => this.closeLibraryModal());
         this.$.libraryModalX?.addEventListener('click', () => this.closeLibraryModal());
         this.$.libraryUseBtn?.addEventListener('click', () => this.useLibraryInEditor());
@@ -291,8 +312,9 @@ class App {
 
     async init() {
         document.documentElement.setAttribute('data-theme', 'light');
-        this.syncDemoModeUI();
+
         this.checkKey();
+        this.syncLibSortUI();
         this.loadBadge();
         this.loadDraft();
         await this.refreshUsageBudget();
@@ -307,6 +329,7 @@ class App {
     async craftPrompt() {
         const idea = document.getElementById('pcIdea')?.value?.trim();
         if (!idea) return;
+        if (!this.ensureSessionApiKey()) return;
 
         const tone = document.getElementById('pcTone')?.value || '';
         const audience = document.getElementById('pcAudience')?.value || '';
@@ -320,36 +343,13 @@ class App {
         if (btnTxt) btnTxt.textContent = 'Crafting...';
         if (spinner) spinner.style.display = 'inline-block';
 
-        if (this.isDemoMode()) {
-            const toneTxt = tone ? `Tone: ${tone}. ` : '';
-            const audienceTxt = audience ? `Audience: ${audience}. ` : '';
-            const formatTxt = format ? `Output format: ${format}. ` : '';
-            this._lastCraftedPrompt = `Act as an expert assistant. ${toneTxt}${audienceTxt}${formatTxt}Goal: ${idea}. Include clear steps, constraints, and one concrete example. Keep the final answer concise and presentation-ready.`.trim();
-            document.getElementById('pcEmpty').style.display = 'none';
-            const resultEl = document.getElementById('pcResult');
-            resultEl.style.display = 'flex';
-            document.getElementById('pcResultTitle').textContent = 'Demo Crafted Prompt';
-            document.getElementById('pcPromptText').textContent = this._lastCraftedPrompt;
-            const tipsEl = document.getElementById('pcTips');
-            tipsEl.innerHTML = '';
-            ['Uses role + context for better consistency', 'Adds output constraints to reduce vague answers', 'Includes example-driven clarity for class demo'].forEach(t => {
-                const div = document.createElement('div');
-                div.className = 'pc-tip';
-                div.textContent = t;
-                tipsEl.appendChild(div);
-            });
-            if (btn) btn.disabled = !idea;
-            if (btnTxt) btnTxt.textContent = 'Generate Prompt';
-            if (spinner) spinner.style.display = 'none';
-            this.toast('Demo prompt crafted', 'ok');
-            return;
-        }
+
 
         try {
             const resp = await fetch('/api/craft-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idea, tone, audience, format })
+                body: JSON.stringify({ idea, tone, audience, format, apiKey: this.sessionApiKey })
             });
 
             const data = await resp.json();
@@ -525,45 +525,48 @@ class App {
             badge.style.lineHeight = '1';
         };
 
-        if (this.isDemoMode()) {
-            this.cachedKeyStatus = true;
-            setBadge(true);
-            return;
-        }
-
         try {
             const r = await fetch(`${this.API}/settings/apikey/status`);
             const d = await r.json();
-            const configured = !!(d.configured || d.hasKey);
-            this.cachedKeyStatus = configured;
-            setBadge(configured);
-            if (!configured) setTimeout(() => this.openModal(), 1000);
-        } catch (e) {
-            this.cachedKeyStatus = false;
-            setBadge(false);
+            this.backendHasDefaultKey = !!(d.configured || d.hasKey);
+        } catch (_) {
+            this.backendHasDefaultKey = false;
         }
+
+        const configured = !!this.sessionApiKey || this.backendHasDefaultKey;
+        this.cachedKeyStatus = configured;
+        setBadge(configured);
+        if (!configured) setTimeout(() => this.openModal(), 300);
     }
 
     async saveKey() {
         const k = this.$.apiKeyInput.value.trim();
         if (!k) return;
-        this.$.saveKeyBtn.textContent = 'Saving…';
+        if (k.length < 20) {
+            this.$.modalStatus.textContent = 'Invalid key format';
+            this.$.modalStatus.style.color = 'var(--red)';
+            return;
+        }
+        this.$.saveKeyBtn.textContent = 'Applying...';
         try {
-            const r = await this.apiFetch(['/settings/apikey', '/set-api-key'], {
-                method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({apiKey:k})
-            });
-            if (r.ok) {
-                this.$.apiKeyInput.value = '';
-                this.checkKey();
-                this.toast('API key saved', 'ok');
-                setTimeout(() => this.closeModal(), 600);
-            } else throw new Error();
+            this.sessionApiKey = k;
+            this.$.apiKeyInput.value = '';
+            this.$.modalStatus.textContent = 'Key set for this session only';
+            this.$.modalStatus.style.color = 'var(--ok)';
+            this.checkKey();
+            this.toast('Session key applied', 'ok');
+            setTimeout(() => this.closeModal(), 400);
         } catch (e) {
             this.$.modalStatus.textContent = 'Error saving key';
             this.$.modalStatus.style.color = 'var(--red)';
-        } finally { this.$.saveKeyBtn.textContent = 'Save Configuration'; }
+        } finally { this.$.saveKeyBtn.textContent = 'Apply Session Key'; }
+    }
+
+    ensureSessionApiKey() {
+        if (this.sessionApiKey || this.backendHasDefaultKey) return true;
+        this.showErr('Enter your Groq API key to continue. It is not saved and is required each login.');
+        this.openModal();
+        return false;
     }
 
     /* ===== Live Detection ===== */
@@ -631,6 +634,7 @@ class App {
     async analyze() {
         const prompt = this.$.input.value.trim();
         if (!prompt) return;
+        if (!this.ensureSessionApiKey()) return;
         if (prompt.length > 8000) {
             this.showErr('Prompt is too long. Please keep it under 8000 characters.');
             return;
@@ -641,10 +645,7 @@ class App {
             return;
         }
 
-        if (this.isDemoMode()) {
-            this.runDemoAnalysis(prompt);
-            return;
-        }
+
 
         const estimate = this.estimateTokensForPrompt(prompt, this.analysisMode);
         if ((this.tokenBudget?.remaining ?? 0) < estimate) {
@@ -667,7 +668,7 @@ class App {
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ prompt })
+                body: JSON.stringify({ prompt, apiKey: this.sessionApiKey })
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
@@ -936,12 +937,6 @@ class App {
 
     /* ===== Library ===== */
     async loadBadge() {
-        if (this.isDemoMode()) {
-            const demos = this.getShowcaseHistory();
-            this.$.badge.textContent = demos.length;
-            this.$.badge.style.display = demos.length > 0 ? 'inline-block' : 'none';
-            return;
-        }
         try {
             const r = await fetch(`${this.API}/history`);
             const d = await r.json();
@@ -952,24 +947,10 @@ class App {
     }
 
     async loadLib() {
-        if (this.isDemoMode()) {
-            this.history = this.getShowcaseHistory().map((item) => ({
-                ...item,
-                tags: this.normalizeTags(item.tags)
-            }));
-            this.renderTagFilterOptions();
-            this.renderLib();
-            return;
-        }
         try {
             const r = await fetch(`${this.API}/history`);
             const apiHistory = await r.json();
-            const source = Array.isArray(apiHistory) && apiHistory.length ? apiHistory : this.getShowcaseHistory();
-            this.history = source.map((item) => ({
-                ...item,
-                tags: this.normalizeTags(item.tags)
-            }));
-            this.renderTagFilterOptions();
+            this.history = Array.isArray(apiHistory) && apiHistory.length ? apiHistory : this.getShowcaseHistory();
             this.renderLib();
         } catch (e) { this.$.libGrid.innerHTML = ''; this.$.libEmpty.style.display = 'flex'; }
     }
@@ -983,19 +964,9 @@ class App {
         else if (this.filter === 'mid') items = items.filter(i => i.score >= 4 && i.score < 7);
         else if (this.filter === 'low') items = items.filter(i => i.score < 4);
 
-        // Filter by selected tag
-        if (this.tagFilter && this.tagFilter !== 'all') {
-            const targetTag = this.tagFilter.toLowerCase();
-            items = items.filter((i) => this.normalizeTags(i.tags).some((tag) => tag.toLowerCase() === targetTag));
-        }
-
         // Filter by search
         if (this.searchQuery) {
-            items = items.filter(i => {
-                const text = String(i.prompt_text || '').toLowerCase();
-                const tagsText = this.normalizeTags(i.tags).join(' ').toLowerCase();
-                return text.includes(this.searchQuery) || tagsText.includes(this.searchQuery);
-            });
+            items = items.filter(i => i.prompt_text.toLowerCase().includes(this.searchQuery));
         }
 
         // Sort
@@ -1003,6 +974,8 @@ class App {
         else if (this.sortMode === 'score_high') items.sort((a, b) => (parseFloat(String(b.score).split('/')[0]) || 0) - (parseFloat(String(a.score).split('/')[0]) || 0));
         else if (this.sortMode === 'score_low') items.sort((a, b) => (parseFloat(String(a.score).split('/')[0]) || 0) - (parseFloat(String(b.score).split('/')[0]) || 0));
         else items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        this.syncLibSortUI();
 
         this.$.clearAllBtn.style.display = this.history.length > 0 ? 'inline-flex' : 'none';
 
@@ -1015,18 +988,9 @@ class App {
             const d = new Date(i.created_at);
             const ds = !isNaN(d) ? d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
             const isSaved = i.saved === true || i.isSaved === true;
-            const tags = this.normalizeTags(i.tags);
             const saveIcon = isSaved ? 
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' :
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-
-            const tagsHtml = tags.length
-                ? tags.map(tag => {
-                    const encoded = encodeURIComponent(tag);
-                    const toneClass = this.tagToneClass(tag);
-                    return `<button class="lc-tag ${toneClass}" onclick="event.stopPropagation();app.applyTagFilter('${encoded}')">#${this.esc(tag)}</button>`;
-                }).join('')
-                : '<span class="lc-tag-empty">No tags</span>';
 
             return `<div class="lib-card ${isSaved ? 'is-saved' : ''}" onclick="app.viewItem(${i.id})">
                 <div class="lc-top">
@@ -1042,68 +1006,14 @@ class App {
                     </div>
                 </div>
                 <div class="lc-text">${this.esc(i.prompt_text)}</div>
-                <div class="lc-tags">${tagsHtml}</div>
                 <div class="lc-foot">
                     <span class="lc-label">${this.esc(i.category||i.label||i.verdict||this.sLabel(cleanScore))}</span>
-                    <div class="lc-actions">
-                        <button class="lc-tag-btn" onclick="event.stopPropagation();app.editTags(${i.id})" aria-label="Edit tags">Tags</button>
-                        <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                    </div>
+                    <button class="lc-del" onclick="event.stopPropagation();app.delItem(${i.id})" aria-label="Delete">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
                 </div>
             </div>`;
         }).join('');
-    }
-
-    renderTagFilterOptions() {
-        if (!this.$.libTagFilter) return;
-        const tags = [...new Set(this.history.flatMap((item) => this.normalizeTags(item.tags)))].sort((a, b) => a.localeCompare(b));
-        const current = this.tagFilter || 'all';
-        const options = [{ value: 'all', label: 'All Tags' }, ...tags.map((tag) => ({ value: tag, label: `#${tag}` }))];
-        const selected = tags.includes(current) ? current : 'all';
-        this.setDropdownOptions(this.$.libTagFilter, options, selected);
-        this.tagFilter = selected;
-    }
-
-    applyTagFilter(encodedTag) {
-        const tag = decodeURIComponent(encodedTag || '').toLowerCase();
-        if (!tag || !this.$.libTagFilter) return;
-        this.tagFilter = tag;
-        this.setDropdownValue(this.$.libTagFilter, tag);
-        this.renderLib();
-    }
-
-    async editTags(id) {
-        const item = this.history.find((i) => Number(i.id) === Number(id));
-        if (!item) return;
-
-        const current = this.normalizeTags(item.tags).join(', ');
-        const rawInput = window.prompt('Add tags separated by commas (example: coding, creative, work)', current);
-        if (rawInput === null) return;
-
-        const tags = this.normalizeTags(rawInput.split(','));
-
-        try {
-            if (!this.isDemoMode()) {
-                const response = await this.apiFetch([`/history/${id}/tags`], {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tags })
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(data.error || 'Unable to save tags');
-                item.tags = this.normalizeTags(data.tags || tags);
-            } else {
-                item.tags = tags;
-            }
-
-            this.renderTagFilterOptions();
-            this.renderLib();
-            this.toast('Tags updated', 'ok');
-        } catch (error) {
-            this.toast(error.message || 'Failed to update tags', 'err');
-        }
     }
 
     async viewItem(id) {
@@ -1115,17 +1025,27 @@ class App {
             this.libraryModalData = {
                 prompt_text: d.prompt_text || '',
                 score: normalized.score || 0,
+                category: normalized.category || '',
                 strengths: normalized.strengths || [],
                 weaknesses: normalized.missing || [],
+                tips: normalized.tips || [],
                 improved: normalized.improved || ''
             };
             this.$.libraryModalScore.textContent = `${this.libraryModalData.score}/10`;
+            const catEl = document.getElementById('libraryModalCategory');
+            if (catEl) catEl.textContent = this.libraryModalData.category || '—';
             this.$.libraryModalStrengths.innerHTML = this.libraryModalData.strengths.length
                 ? this.libraryModalData.strengths.map((x) => `<li>${this.esc(x)}</li>`).join('')
                 : '<li>—</li>';
             this.$.libraryModalWeaknesses.innerHTML = this.libraryModalData.weaknesses.length
                 ? this.libraryModalData.weaknesses.map((x) => `<li>${this.esc(x)}</li>`).join('')
                 : '<li>—</li>';
+            const tipsEl = document.getElementById('libraryModalTips');
+            if (tipsEl) {
+                tipsEl.innerHTML = this.libraryModalData.tips.length
+                    ? this.libraryModalData.tips.map((t) => `<li><b>${this.esc(t.title)}</b>${t.description ? ' — ' + this.esc(t.description) : ''}</li>`).join('')
+                    : '<li>—</li>';
+            }
             this.$.libraryModalImproved.textContent = this.libraryModalData.improved || '—';
             this.$.libraryModal.classList.add('open');
         } catch (e) {}
@@ -1186,6 +1106,34 @@ class App {
         this.toast('History cleared');
     }
 
+    toggleLibSortMenu() {
+        if (!this.$.libSortShell || !this.$.libSortTrigger) return;
+        const isOpen = this.$.libSortShell.classList.toggle('open');
+        this.$.libSortTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
+    closeLibSortMenu() {
+        if (!this.$.libSortShell || !this.$.libSortTrigger) return;
+        this.$.libSortShell.classList.remove('open');
+        this.$.libSortTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    setLibSortMode(value, label) {
+        if (!value) return;
+        this.sortMode = value;
+        if (this.$.libSortTrigger && label) this.$.libSortTrigger.textContent = label;
+        this.closeLibSortMenu();
+        this.renderLib();
+    }
+
+    syncLibSortUI() {
+        if (!this.$.libSortTrigger || !this.$.libSortMenu) return;
+        const options = Array.from(this.$.libSortMenu.querySelectorAll('.lib-sort-option'));
+        const active = options.find((o) => o.dataset.value === this.sortMode) || options[0];
+        options.forEach((o) => o.classList.toggle('active', o === active));
+        if (active) this.$.libSortTrigger.textContent = active.textContent.trim();
+    }
+
     exportHistory() {
         if (!this.history.length) {
             this.toast('No history to export');
@@ -1244,23 +1192,6 @@ class App {
 
     /* ===== Stats ===== */
     async loadStats() {
-        if (this.isDemoMode()) {
-            const showcase = this.getShowcaseHistory();
-            const stats = this.buildStatsFromHistory(showcase);
-            this.$.sTot.textContent = stats.totalAnalyzed;
-            this.$.sAvg.textContent = stats.averageScore;
-            this.$.sBest.textContent = stats.bestScore;
-            this.$.sWeek.textContent = stats.thisWeek;
-            this.renderDistributionChart({ weak: stats.weak, mid: stats.mid, high: stats.high, total: stats.totalAnalyzed || 1 });
-            this.renderLineChart(stats.scoreHistory || []);
-            if (this.$.trendLabel) {
-                if (stats.trend === 'improving') { this.$.trendLabel.textContent = '↑ Improving'; this.$.trendLabel.className = 'chart-sub up'; }
-                else if (stats.trend === 'declining') { this.$.trendLabel.textContent = '↓ Declining'; this.$.trendLabel.className = 'chart-sub down'; }
-                else { this.$.trendLabel.textContent = '→ Stable'; this.$.trendLabel.className = 'chart-sub flat'; }
-            }
-            this.renderElementRadar(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || 1);
-            return;
-        }
 
         try {
             const [sr, hr] = await Promise.all([fetch(`${this.API}/stats`), fetch(`${this.API}/history`)]);
@@ -1292,6 +1223,7 @@ class App {
                 else if (stats.trend === 'declining') { tl.textContent = '↓ Declining'; tl.className = 'chart-sub down'; }
                 else { tl.textContent = '→ Stable'; tl.className = 'chart-sub flat'; }
             }
+            this.updateTrendExplanation(stats.trend, stats.last5Average, stats.averageScore, stats.weakestElement);
 
             this.renderElementRadar(stats.elementUsage || { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }, stats.totalAnalyzed || hist.length || 0);
         } catch (e) {}
@@ -1459,6 +1391,24 @@ class App {
                 }
             }
         });
+
+        const weakest = Object.entries(usage).sort((a, b) => a[1] - b[1])[0]?.[0] || 'examples';
+        const weakestLabel = weakest.charAt(0).toUpperCase() + weakest.slice(1);
+
+        let ctaEl = document.getElementById('radarCta');
+        if (!ctaEl) {
+            ctaEl = document.createElement('div');
+            ctaEl.id = 'radarCta';
+            ctaEl.style.textAlign = 'center';
+            ctaEl.style.marginTop = '12px';
+            this.$.elementRadar.parentNode.appendChild(ctaEl);
+        }
+        ctaEl.innerHTML = `
+            <p style="font-size:13px; color:#6b7280; margin:8px 0 4px;">Your weakest element is <b>${weakestLabel}</b></p>
+            <button onclick="app.practiceElement('${weakest}')" style="font-size:12px; padding:5px 12px; border:1px solid #d1d5db; border-radius:6px; cursor:pointer; background:#f9fafb; color:#374151; font-weight:600;">
+                Practice ${weakestLabel} →
+            </button>
+        `;
     }
 
     renderDistributionChart({ weak, mid, high, total }) {
@@ -1639,12 +1589,41 @@ class App {
         });
     }
 
+    practiceElement(element) {
+        let template = '';
+        if (element === 'role') template = 'Explain the water cycle to a 5-year-old. Format as a bulleted list. Keep it under 50 words. E.g. "Input: water cycle -> Output: rain falls."';
+        else if (element === 'format') template = 'Act as a science teacher. Explain the water cycle to a 5-year-old. Keep it under 50 words. E.g. "Input: water cycle -> Output: rain falls."';
+        else if (element === 'constraints') template = 'Act as a science teacher. Explain the water cycle to a 5-year-old. Format as a bulleted list. E.g. "Input: water cycle -> Output: rain falls."';
+        else if (element === 'examples') template = 'Act as a science teacher. Explain the water cycle to a 5-year-old. Format as a bulleted list. Keep it under 50 words.';
+        else template = 'Act as a science teacher. Explain the water cycle. Format as a bulleted list. Keep it under 50 words. E.g. "Input: water cycle -> Output: rain falls."';
+        
+        this.go('craft');
+        this.$.input.value = template;
+        this.detect();
+        this.counts();
+        this.updateAnalyzeButtonState();
+        this.$.input.focus();
+        this.toast(`Practicing: Add a missing ${element}!`, 'ok');
+    }
+
     destroyChart(name) {
         const chart = this.charts[name];
         if (chart) {
             chart.destroy();
             this.charts[name] = null;
         }
+    }
+
+    updateTrendExplanation(trend, last5Average, averageScore, weakestElement) {
+        const el = document.getElementById('trendExplanation');
+        if (!el) return;
+        const l5 = last5Average || 0;
+        const avg = averageScore || 0;
+        const weak = weakestElement || 'examples';
+        el.innerHTML = `Your last 5 prompts averaged ${l5}/10 vs your overall ${avg}/10. Most missed element: <b>${weak}</b>`;
+        if (trend === 'declining') el.style.color = 'var(--red)';
+        else if (trend === 'improving') el.style.color = 'var(--green)';
+        else el.style.color = 'var(--tx3)';
     }
 
     css(name) {
@@ -1774,6 +1753,26 @@ class App {
             const doneCount = Object.values(this.lessonState).filter(Boolean).length;
             this.$.lessonProgress.textContent = `${doneCount}/${this.lessons.length} completed`;
         }
+
+        const allDone = this.lessons.every(l => !!this.lessonState[l.id]);
+        if (allDone) {
+            let banner = document.getElementById('lessonsBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'lessonsBanner';
+                this.$.lessonList.parentNode.insertBefore(banner, this.$.lessonList);
+            }
+            banner.innerHTML = `
+                <div style="background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+                    <span style="color:#065f46; font-weight:500;">🎉 All lessons complete! Ready for the real test?</span>
+                    <button onclick="app.go('challenges')" style="background:#059669; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600;">Try Challenges →</button>
+                </div>
+            `;
+            localStorage.setItem('pt_lessonsCompleted', 'true');
+        } else {
+            const banner = document.getElementById('lessonsBanner');
+            if (banner) banner.remove();
+        }
     }
 
     showLessonsList() {
@@ -1807,13 +1806,31 @@ class App {
     renderChallengesList(showList = true) {
         if (!this.$.challengeList) return;
         if (showList) this.showChallengesList();
+        
+        const CHALLENGE_HINTS = {
+            'c1': "Specify tone (formal/apologetic), include a role like 'Act as a professional assistant', and state the exact reason for declining.",
+            'c2': "Mention the programming language, describe the bug symptom clearly, and ask for both the fix AND an explanation of why it was wrong.",
+            'c3': "Specify data type, desired output format (table/chart/bullets), and what decision or action the analysis should support.",
+            'c4': "Set the audience age/level explicitly, request an analogy to explain, and limit the explanation to one concept at a time.",
+            'c5': "Define genre, exact word count, tone/mood, and at least one specific plot constraint or character requirement."
+        };
+
         this.$.challengeList.innerHTML = this.challenges.map((c, idx) => {
             const done = !!this.challengeState[c.id];
-            return `<button class="challenge-card ${done ? 'done' : ''}" data-id="${c.id}">
-                <span class="challenge-badge">#${idx + 1}</span>
-                <span class="lesson-meta"><strong>${this.esc(c.title)}</strong><span>${this.esc(c.summary)}</span></span>
-                <span class="lesson-tail">${done ? '✓' : '>'}</span>
-            </button>`;
+            const hintHtml = !done ? `
+                <div style="margin-top: 6px; padding: 0 12px;">
+                    <button class="hint-toggle" data-challenge="${c.id}" onclick="event.stopPropagation(); this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none';" style="background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:4px 0;">Show Hint ▼</button>
+                    <div class="hint-text" style="display:none; font-size:12px; color:var(--tx2); padding:8px 12px; background:var(--card-solid); border:1px solid var(--border); border-radius:6px; margin-top:4px;">${this.esc(CHALLENGE_HINTS[c.id])}</div>
+                </div>
+            ` : '';
+
+            return `<div style="display:flex; flex-direction:column; gap:4px;">
+                <button class="challenge-card ${done ? 'done' : ''}" data-id="${c.id}">
+                    <span class="challenge-badge">#${idx + 1}</span>
+                    <span class="lesson-meta"><strong>${this.esc(c.title)}</strong><span>${this.esc(c.summary)}</span></span>
+                    <span class="lesson-tail">${done ? '✓' : '>'}</span>
+                </button>${hintHtml}
+            </div>`;
         }).join('');
         this.$.challengeList.querySelectorAll('.challenge-card').forEach(btn => {
             btn.addEventListener('click', () => this.openChallenge(btn.dataset.id));
@@ -1982,13 +1999,6 @@ class App {
 
     async runApiHealthCheck() {
         if (!this.$.apiHealthBadge) return;
-        if (this.isDemoMode()) {
-            this.$.apiHealthBadge.textContent = 'API: Demo mode';
-            this.$.apiHealthBadge.classList.remove('err');
-            this.$.apiHealthBadge.classList.add('ok');
-            this.toast('Demo mode is ready', 'ok');
-            return;
-        }
         this.$.apiHealthBadge.textContent = 'API: Checking...';
         this.$.apiHealthBadge.classList.remove('ok', 'err');
         const started = performance.now();
@@ -2029,159 +2039,6 @@ class App {
         return 'Needs Major Work';
     }
 
-    normalizeTags(tags) {
-        if (!Array.isArray(tags)) return [];
-        return [...new Set(tags
-            .map((tag) => String(tag || '').trim().toLowerCase())
-            .filter(Boolean))]
-            .slice(0, 12);
-    }
-
-    tagToneClass(tag) {
-        const input = String(tag || '');
-        let hash = 0;
-        for (let i = 0; i < input.length; i++) {
-            hash = ((hash << 5) - hash) + input.charCodeAt(i);
-            hash |= 0;
-        }
-        return `tone-${Math.abs(hash) % 5}`;
-    }
-
-    bindCustomDropdowns() {
-        if (!this.$.dropdowns?.length) return;
-
-        this.$.dropdowns.forEach((dropdown) => {
-            const trigger = dropdown.querySelector('.sort-trigger');
-            if (!trigger) return;
-
-            trigger.addEventListener('click', (event) => {
-                event.stopPropagation();
-                if (this.activeDropdown === dropdown) {
-                    this.closeDropdown(dropdown);
-                    return;
-                }
-                this.openDropdown(dropdown);
-            });
-
-            trigger.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    trigger.click();
-                }
-                if (event.key === 'Escape') {
-                    event.preventDefault();
-                    this.closeDropdown(dropdown);
-                }
-            });
-
-            dropdown.querySelectorAll('.sort-option').forEach((option) => {
-                option.addEventListener('click', () => {
-                    this.selectDropdownOption(dropdown, option.dataset.value || '', option.querySelector('.sort-option-label')?.textContent || option.textContent || '');
-                });
-
-                option.addEventListener('keydown', (event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        option.click();
-                    }
-                    if (event.key === 'Escape') {
-                        event.preventDefault();
-                        this.closeDropdown(dropdown);
-                    }
-                });
-            });
-        });
-
-        document.addEventListener('click', () => this.closeDropdown());
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.activeDropdown) {
-                this.closeDropdown();
-            }
-        });
-    }
-
-    openDropdown(dropdown) {
-        this.closeDropdown();
-        dropdown.classList.add('open');
-        dropdown.querySelector('.sort-trigger')?.setAttribute('aria-expanded', 'true');
-        this.activeDropdown = dropdown;
-    }
-
-    closeDropdown(dropdown = this.activeDropdown) {
-        if (!dropdown) return;
-        dropdown.classList.remove('open');
-        dropdown.querySelector('.sort-trigger')?.setAttribute('aria-expanded', 'false');
-        if (this.activeDropdown === dropdown) this.activeDropdown = null;
-    }
-
-    setDropdownOptions(dropdown, options, selectedValue) {
-        if (!dropdown) return;
-        const panel = dropdown.querySelector('.sort-panel');
-        if (!panel) return;
-
-        panel.innerHTML = options.map((option) => {
-            const selected = option.value === selectedValue;
-            return `<button class="sort-option ${selected ? 'is-selected' : ''}" type="button" role="option" aria-selected="${selected ? 'true' : 'false'}" data-value="${this.esc(option.value)}">
-                <span class="sort-check" aria-hidden="true">✓</span>
-                <span class="sort-option-label">${this.esc(option.label)}</span>
-            </button>`;
-        }).join('');
-
-        panel.querySelectorAll('.sort-option').forEach((option) => {
-            option.addEventListener('click', () => {
-                this.selectDropdownOption(dropdown, option.dataset.value || '', option.querySelector('.sort-option-label')?.textContent || '');
-            });
-            option.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    option.click();
-                }
-            });
-        });
-
-        this.setDropdownValue(dropdown, selectedValue);
-    }
-
-    setDropdownValue(dropdown, value) {
-        if (!dropdown) return;
-        const options = dropdown.querySelectorAll('.sort-option');
-        let selectedLabel = '';
-
-        options.forEach((option) => {
-            const selected = option.dataset.value === value;
-            option.classList.toggle('is-selected', selected);
-            option.setAttribute('aria-selected', selected ? 'true' : 'false');
-            if (selected) {
-                selectedLabel = option.querySelector('.sort-option-label')?.textContent || '';
-            }
-        });
-
-        if (selectedLabel) {
-            const valueEl = dropdown.querySelector('.sort-value');
-            if (valueEl) valueEl.textContent = selectedLabel;
-        }
-        dropdown.dataset.ddValue = value;
-    }
-
-    selectDropdownOption(dropdown, value, label) {
-        const key = dropdown?.dataset?.ddKey;
-        if (!key) return;
-
-        this.setDropdownValue(dropdown, value);
-
-        if (key === 'sort') {
-            this.sortMode = value;
-            this.renderLib();
-        }
-
-        if (key === 'tag') {
-            this.tagFilter = value || 'all';
-            this.renderLib();
-        }
-
-        this.closeDropdown(dropdown);
-    }
-
     esc(s) { return s ? s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c)) : ''; }
 
     toast(msg, type='ok') {
@@ -2195,10 +2052,6 @@ class App {
     /* ===== Chat View ===== */
     async loadChat() {
         if(!this.$.chatList) return;
-        if (this.isDemoMode()) {
-            this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Demo Mode is active. Ask anything about prompt writing and I will respond with class-ready guidance.</div></div>`;
-            return;
-        }
         try {
             const r = await fetch(`${this.API}/chat`);
             const d = await r.json();
@@ -2215,10 +2068,6 @@ class App {
     }
 
     async clearChat() {
-        if (this.isDemoMode()) {
-            this.loadChat();
-            return;
-        }
         try {
             await fetch(`${this.API}/chat`, { method: 'DELETE' });
             this.loadChat();
@@ -2250,6 +2099,7 @@ class App {
     async sendChatMessage() {
         const text = this.$.chatInput?.value.trim();
         if(!text) return;
+        if (!this.ensureSessionApiKey()) return;
 
         this.$.chatInput.value = '';
         this.$.chatSendBtn.disabled = true;
@@ -2280,27 +2130,11 @@ class App {
 
         const payloadMessages = [this.getChatSystemPrompt(), ...msgs];
 
-        if (this.isDemoMode()) {
-            const demoReply = this.getDemoChatReply(text);
-            contentDiv.textContent = '';
-            let idx = 0;
-            const tick = setInterval(() => {
-                idx += 2;
-                contentDiv.textContent = demoReply.slice(0, idx);
-                this.scrollChat();
-                if (idx >= demoReply.length) {
-                    clearInterval(tick);
-                    this.$.chatSendBtn.disabled = false;
-                }
-            }, 16);
-            return;
-        }
-
         try {
             const resp = await fetch(`${this.API}/chat/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: payloadMessages })
+                body: JSON.stringify({ messages: payloadMessages, apiKey: this.sessionApiKey })
             });
 
             if (!resp.ok) {
@@ -2352,179 +2186,7 @@ class App {
         }
     }
 
-    isDemoMode() {
-        return localStorage.getItem('pt_demo_mode') === '1';
-    }
 
-    setDemoMode(enabled) {
-        localStorage.setItem('pt_demo_mode', enabled ? '1' : '0');
-        this.syncDemoModeUI();
-        this.checkKey();
-        this.loadBadge();
-        if (document.getElementById('view-library')?.classList.contains('active')) this.loadLib();
-        if (document.getElementById('view-stats')?.classList.contains('active')) this.loadStats();
-        this.toast(enabled ? 'Demo Mode enabled' : 'Demo Mode disabled', 'ok');
-    }
-
-    syncDemoModeUI() {
-        const on = this.isDemoMode();
-        if (this.$.demoModeToggle) this.$.demoModeToggle.checked = on;
-        if (this.$.demoModeHint) {
-            this.$.demoModeHint.textContent = on
-                ? 'Enabled: class-safe mock responses are active.'
-                : 'Use realistic mock responses for class presentation.';
-        }
-    }
-
-    getShowcaseHistory() {
-        const now = Date.now();
-        const rows = [
-            { txt: 'Act as a career coach. Improve this resume summary in 5 bullet points for a software internship.', score: 8.9, category: 'Directive', tone: 'Formal', elements: { role: true, format: true, constraints: true, examples: false, context: true } },
-            { txt: 'Create a 7-day study plan for DBMS for a beginner. Output as a table with topic, practice task, and revision.', score: 8.2, category: 'Analytical', tone: 'Directive', elements: { role: false, format: true, constraints: true, examples: false, context: true } },
-            { txt: 'Write a polite email to professor requesting a project extension due to health reasons.', score: 7.4, category: 'Formal', tone: 'Formal', elements: { role: false, format: true, constraints: false, examples: false, context: true } },
-            { txt: 'Explain quantum computing to a class 10 student using 3 analogies and keep it under 120 words.', score: 8.6, category: 'Creative', tone: 'Analytical', elements: { role: true, format: true, constraints: true, examples: true, context: true } },
-            { txt: 'Debug this JavaScript function and list root cause, fixed code, and test cases.', score: 9.1, category: 'Technical', tone: 'Technical', elements: { role: true, format: true, constraints: true, examples: false, context: true } },
-            { txt: 'Generate 10 startup ideas in AI + sustainability with target users and one-line monetization.', score: 7.8, category: 'Creative', tone: 'Creative', elements: { role: true, format: true, constraints: true, examples: false, context: false } },
-            { txt: 'Summarize this article in exactly 5 bullets and mention one counterargument.', score: 6.8, category: 'Analytical', tone: 'Directive', elements: { role: false, format: true, constraints: true, examples: false, context: false } },
-            { txt: 'Act as a senior PM. Turn user feedback into prioritized feature backlog with impact and effort score.', score: 9.3, category: 'Technical', tone: 'Analytical', elements: { role: true, format: true, constraints: true, examples: false, context: true } }
-        ];
-
-        return rows.map((r, idx) => ({
-            id: 9000 + idx,
-            prompt_text: r.txt,
-            score: r.score,
-            category: r.category,
-            tone: r.tone,
-            elements: r.elements,
-            strengths: ['Clear intent', 'Actionable format'],
-            missing: ['Could include one concrete example'],
-            tips: [{ title: 'Add specificity', description: 'Specify audience and expected output fields.' }],
-            improved: r.txt,
-            improvedDeveloper: r.txt,
-            improvedBeginner: r.txt,
-            tags: idx % 2 === 0 ? ['demo', 'practice'] : ['demo'],
-            saved: idx % 3 === 0,
-            isSaved: idx % 3 === 0,
-            created_at: new Date(now - idx * 36e5 * 5).toISOString()
-        }));
-    }
-
-    buildStatsFromHistory(hist) {
-        const list = Array.isArray(hist) ? hist : [];
-        if (!list.length) {
-            return {
-                totalAnalyzed: 0,
-                averageScore: 0,
-                bestScore: 0,
-                thisWeek: 0,
-                weak: 0,
-                mid: 0,
-                high: 0,
-                trend: 'neutral',
-                scoreHistory: [],
-                elementUsage: { role: 0, format: 0, constraints: 0, examples: 0, context: 0 }
-            };
-        }
-
-        const parsed = list.map((p) => ({
-            ...p,
-            cleanScore: parseFloat(String(p.score).split('/')[0]) || 0,
-            cleanDate: p.created_at || new Date().toISOString()
-        }));
-        const totalAnalyzed = parsed.length;
-        const scores = parsed.map((p) => p.cleanScore);
-        const averageScore = Math.round((scores.reduce((a, b) => a + b, 0) / totalAnalyzed) * 10) / 10;
-        const bestScore = Math.max(...scores);
-        const weak = parsed.filter((p) => p.cleanScore < 4).length;
-        const mid = parsed.filter((p) => p.cleanScore >= 4 && p.cleanScore < 7).length;
-        const high = parsed.filter((p) => p.cleanScore >= 7).length;
-
-        const now = new Date();
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const thisWeek = parsed.filter((p) => new Date(p.cleanDate) >= weekAgo).length;
-
-        const recent = parsed.slice(0, 5).map((p) => p.cleanScore);
-        const older = parsed.slice(5, 10).map((p) => p.cleanScore);
-        let trend = 'neutral';
-        if (recent.length && older.length) {
-            const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-            const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-            if (recentAvg > olderAvg + 0.5) trend = 'improving';
-            else if (recentAvg < olderAvg - 0.5) trend = 'declining';
-        }
-
-        const scoreHistory = parsed.slice(0, 20).reverse().map((p) => ({ score: p.cleanScore, date: p.cleanDate }));
-        const elementUsage = { role: 0, format: 0, constraints: 0, examples: 0, context: 0 };
-        parsed.forEach((p) => {
-            const el = p.elements && Object.values(p.elements).some(Boolean)
-                ? p.elements
-                : this.detectElementsFromText(p.prompt_text);
-            if (el.role) elementUsage.role++;
-            if (el.format) elementUsage.format++;
-            if (el.constraints) elementUsage.constraints++;
-            if (el.examples) elementUsage.examples++;
-            if (el.context) elementUsage.context++;
-        });
-
-        return { totalAnalyzed, averageScore, bestScore, thisWeek, weak, mid, high, trend, scoreHistory, elementUsage };
-    }
-
-    runDemoAnalysis(prompt) {
-        this.originalPrompt = prompt;
-        this.setLoading(true);
-        this.$.emptyState.style.display = 'none';
-        this.$.resultsContent.style.display = 'none';
-        this.$.loadingState.style.display = 'flex';
-
-        const mock = this.getDemoAnalysis(prompt);
-        setTimeout(() => {
-            this.analysis = mock;
-            this.variant = 'default';
-            this.showDiff = false;
-            this.$.diffToggle.classList.remove('active');
-            this.render(mock);
-            this.setLoading(false);
-            this.toast('Demo analysis complete', 'ok');
-        }, 520);
-    }
-
-    getDemoAnalysis(prompt) {
-        const elements = this.detectElementsFromText(prompt);
-        const keys = ['role', 'format', 'constraints', 'examples', 'context'];
-        const onCount = keys.filter((k) => elements[k]).length;
-        const base = 4.8 + onCount * 0.9 + Math.min(1, prompt.length / 1000);
-        const score = Math.max(3.8, Math.min(9.6, Math.round(base * 10) / 10));
-
-        const missing = keys.filter((k) => !elements[k]).slice(0, 3).map((k) => `Add ${k} for stronger clarity.`);
-        const strengths = [];
-        if (elements.role) strengths.push('Clear role assignment improves response quality.');
-        if (elements.format) strengths.push('Output format guidance reduces ambiguity.');
-        if (elements.constraints) strengths.push('Constraints help keep output precise and focused.');
-        if (!strengths.length) strengths.push('Prompt is concise and easy to understand.');
-
-        const improved = `Act as a domain expert. Goal: ${prompt}. Context: audience is undergraduate students preparing for assessment. Output format: concise bullet points with one short example. Constraints: keep under 140 words and avoid jargon.`;
-
-        return {
-            score,
-            category: score >= 8 ? 'Technical' : score >= 7 ? 'Analytical' : 'Directive',
-            scoreLabel: this.sLabel(score),
-            tone: score >= 8 ? 'Analytical' : 'Directive',
-            elements,
-            strengths,
-            missing: missing.length ? missing : ['Great structure. Add one real-world example for even better results.'],
-            tips: [
-                { title: 'Anchor audience', description: 'Mention who this output is for to tune explanation depth.' },
-                { title: 'Constrain response', description: 'Set word/format limits so output stays consistent in evaluation.' }
-            ],
-            improved,
-            improvedDeveloper: `${improved} Return JSON with keys: summary, steps, checks.`,
-            improvedBeginner: `${improved} Use simple language suitable for first-year students.`
-        };
-    }
-
-    getDemoChatReply(text) {
-        return `Nice prompt question. Quick upgrade:\n1) Start with role and objective.\n2) Add output format and strict constraints.\n3) Add context and one example.\n\nFor your message, try: \"Act as an expert tutor. ${text}. Return a concise bullet list with one example and keep it under 120 words.\"`;
-    }
 
     saveDraft() { localStorage.setItem('pt_draft', this.$.input.value); }
     loadDraft() {

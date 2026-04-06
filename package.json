@@ -3,6 +3,8 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
+        "start": "npm --prefix backend start",
+        "dev": "npm --prefix backend dev",
         "test": "node --test tests/*.test.js"
     },
     "dependencies": {
