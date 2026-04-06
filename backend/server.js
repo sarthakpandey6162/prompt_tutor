@@ -266,7 +266,14 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         }
 
         if (!response.ok) {
-            if (response.status === 401) return res.status(401).json({ error: 'Invalid API key. Please check your Groq API key.' });
+            if (response.status === 401) {
+                const wasSessionKey = !!(req.headers['x-groq-api-key'] || req.body?.apiKey);
+                return res.status(401).json({ 
+                    error: wasSessionKey 
+                        ? 'Invalid Session API key. Please check the key you entered.' 
+                        : 'Invalid Server API key. Please check the GROQ_API_KEY environment variable.' 
+                });
+            }
             if (response.status === 429) return res.status(429).json({ error: 'Rate limit exceeded. Please wait a moment and try again.' });
             return res.status(response.status).json({ error: errorData?.error?.message || `API error (${response.status})` });
         }

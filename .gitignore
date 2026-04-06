@@ -5,3 +5,10 @@ backend/settings.json
 backend/.env
 *.log
 .gemini/
+.env
+.antigravity/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.DS_Store
