@@ -3116,6 +3116,213 @@ textarea:focus-visible, input:focus-visible {
     }
 }
 
+/* ===== DATASET EXPLORER ===== */
+#view-dataset {
+    flex-direction: column;
+    padding: 28px 26px 24px;
+    gap: 14px;
+    overflow: hidden;
+}
+
+.dataset-view-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.dataset-view-title {
+    font-family: var(--ff-h);
+    font-size: 34px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--tx);
+}
+
+.dataset-view-subtitle {
+    color: var(--tx2);
+    font-size: 17px;
+    line-height: 1.4;
+    margin-top: 6px;
+    max-width: 760px;
+}
+
+.dataset-header-actions {
+    margin-left: auto;
+}
+
+.dataset-search-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 300px;
+    max-width: 440px;
+    width: min(440px, 48vw);
+    height: 38px;
+    padding: 0 12px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 88%, transparent 12%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.dataset-search-box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-lt);
+}
+
+.dataset-search-box svg {
+    color: var(--tx3);
+    flex-shrink: 0;
+}
+
+.dataset-search-box input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--tx);
+    font-family: var(--ff);
+    font-size: 13px;
+}
+
+.dataset-search-box input::placeholder {
+    color: var(--tx3);
+}
+
+.dataset-stats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dataset-stats .stat-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--tx2);
+    padding: 5px 10px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 90%, transparent 10%);
+}
+
+.dataset-stats .stat-mini strong {
+    font-family: var(--mono);
+    color: var(--tx);
+}
+
+.dataset-table-container {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid color-mix(in srgb, var(--glass-border) 70%, var(--border) 30%);
+    border-radius: var(--r-lg);
+    background: color-mix(in srgb, var(--glass-surface) 88%, transparent 12%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--sh-sm), var(--glass-inset);
+}
+
+.dataset-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.dataset-table th:nth-child(1),
+.dataset-table td:nth-child(1) { width: 56%; }
+
+.dataset-table th:nth-child(2),
+.dataset-table td:nth-child(2) { width: 7%; }
+
+.dataset-table th:nth-child(3),
+.dataset-table td:nth-child(3) { width: 12%; }
+
+.dataset-table th:nth-child(4),
+.dataset-table td:nth-child(4) { width: 10%; }
+
+.dataset-table th:nth-child(5),
+.dataset-table td:nth-child(5) { width: 15%; }
+
+.dataset-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--tx2);
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--card-solid) 90%, transparent 10%);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 14px;
+}
+
+.dataset-table tbody td {
+    font-size: 13px;
+    color: var(--tx);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-lt);
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.dataset-table tbody tr:hover {
+    background: color-mix(in srgb, var(--accent-lt) 34%, transparent 66%);
+}
+
+.dataset-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.dataset-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--tx2);
+    padding: 8px 2px 0;
+    font-size: 13px;
+}
+
+@media (max-width: 960px) {
+    #view-dataset {
+        padding: 22px 16px 18px;
+        gap: 12px;
+    }
+
+    .dataset-view-title {
+        font-size: 28px;
+    }
+
+    .dataset-view-subtitle {
+        font-size: 15px;
+    }
+
+    .dataset-header-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .dataset-search-box {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+    }
+
+    .dataset-table thead th,
+    .dataset-table tbody td {
+        padding: 9px 10px;
+    }
+}
+
 /* ===== THEME PAGE ===== */
 .theme-section {
     margin-top: 28px;
@@ -3760,4 +3967,69 @@ body {
     .cs-item:hover {
         transform: none !important;
     }
+}
+
+
+/* =========================================================================
+   ULTIMATE EDITION UPGRADES 
+   Voice Dictation, Microphone styling, & Mouse Spotlight
+   ========================================================================= */
+
+/* --- Microphone Button --- */
+.mic-btn {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--tx2);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+.mic-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+.mic-btn.recording {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+    animation: mic-pulse 1.5s infinite;
+}
+@keyframes mic-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* --- Spotlight Hover Cards --- */
+.spotlight-card {
+    position: relative;
+    overflow: hidden;
+}
+.spotlight-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: radial-gradient(
+        800px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+        rgba(79, 70, 229, 0.08),
+        transparent 40%
+    );
+    z-index: 0;
+    transition: background 0.2s ease;
+}
+/* Ensure inner content sits above the spotlight pseudo element */
+.spotlight-card > * {
+    position: relative;
+    z-index: 1;
 }

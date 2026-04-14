@@ -170,6 +170,66 @@ app.get('/api/usage', (req, res) => {
     res.json(getBudgetSnapshot());
 });
 
+// --- Local ML Test ---
+app.post('/api/ml/test', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        if (!prompt || !prompt.trim()) {
+            return res.status(400).json({ error: 'Prompt is required' });
+        }
+        
+        let prediction = null;
+        let apiBenchmark = null;
+        
+        // 1. Fetch ML Prediction
+        try {
+            prediction = await fetchMLPrediction(prompt);
+        } catch (e) {
+            console.error('[ML Test Error]', e);
+        }
+        
+        // 2. Fetch Groq API Benchmark
+        const systemPrompt = `Analyze the user's prompt and respond ONLY with valid JSON.
+{
+  "score": <1-10>,
+  "category": "<Analytical|Creative|Technical|Directive|Casual|Formal>"
+}`;
+        const requestBody = {
+            model: DEFAULT_GROQ_MODEL,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: prompt.trim() }
+            ],
+            temperature: 0.2,
+            response_format: { type: "json_object" }
+        };
+        
+        try {
+            const { response } = await fetchGroqWithKeyFallback(req, requestBody);
+            if (response && response.ok) {
+                try {
+                    const data = await response.json();
+                    let cleanText = data.choices[0].message.content.trim();
+                    if (cleanText.startsWith('```')) {
+                        cleanText = cleanText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+                    }
+                    apiBenchmark = JSON.parse(cleanText);
+                } catch (e) {
+                    console.error('Failed to parse Groq API Benchmark', e);
+                }
+            }
+        } catch (e) {
+            // Keep local ML test functional even without internet.
+            console.warn('Groq API Benchmark unavailable:', e.message);
+        }
+        
+        res.json({ success: true, prediction, apiBenchmark });
+    } catch (e) {
+        console.error('[ML Test Error]', e);
+        res.status(500).json({ error: e.message || 'ML service unavailable' });
+    }
+});
+
 // --- Craft Prompt From Idea ---
 app.post('/api/craft-prompt', async (req, res) => {
     try {

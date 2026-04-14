@@ -82,6 +82,45 @@ From project root:
 npm test
 ```
 
+## Improve Local Model Accuracy (Simple Steps)
+
+If your local score and API score are far apart, use this easy 4-step workflow.
+
+From project root:
+
+1. Label prompts with API score/category
+
+```bash
+cd ml_models
+python label_with_groq.py --input dataset/prompts_dataset.csv --output dataset/prompts_api_labeled.csv --limit 600
+```
+
+2. Rebalance low/mid/high score bins
+
+```bash
+python rebalance_dataset.py --input dataset/prompts_api_labeled.csv --output dataset/prompts_train_rebalanced.csv --score-column api_score
+```
+
+3. Evaluate local-vs-API alignment (requires local ML server running)
+
+```bash
+python evaluate_alignment.py --input dataset/prompts_api_labeled.csv --output dataset/alignment_results.csv --limit 200
+```
+
+4. Fit score calibration and apply automatically in local server
+
+```bash
+python fit_score_calibration.py --input dataset/alignment_results.csv --output saved_models/score_calibration.json
+```
+
+After step 4, restart the ML server. It will auto-load calibration from:
+
+- ml_models/saved_models/score_calibration.json
+
+Success target:
+
+- MAE <= 1.5 between local score and API score on a fixed test set.
+
 ## Deployment (Vercel)
 
 This repo is configured for Vercel via vercel.json:
@@ -93,6 +132,11 @@ Important behavior on Vercel:
 
 - Data is in-memory and ephemeral in api/index.js
 - API key is session-only: users must provide it each login/session
+
+Required Vercel environment variables:
+
+- GROQ_API_KEY (or GROQ_KEY)
+- GROQ_MODEL (optional, defaults to llama-3.1-8b-instant)
 
 ## API Overview
 

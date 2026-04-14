@@ -101,7 +101,7 @@ function saveAnalysis(promptText, analysis) {
     return newEntry.id;
 }
 
-function getHistory(limit = 50) {
+function getHistory(limit = 10000) {
     return readJSON(DB_PATH).slice(0, limit);
 }
 

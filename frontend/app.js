@@ -23,6 +23,9 @@ class App {
         this.cachedKeyStatus = null;
         this.sessionApiKey = '';
         this.backendHasDefaultKey = false;
+        this.datasetRows = [];
+        this.datasetFiltered = [];
+        this.datasetLoaded = false;
         this.loadingPhrases = [
             'Analyzing structure...',
             'Checking clarity and constraints...',
@@ -170,7 +173,26 @@ class App {
             chatInput: document.getElementById('chatInput'),
             chatSendBtn: document.getElementById('chatSendBtn'),
             chatClearBtn: document.getElementById('chatClearBtn'),
-            chatModelSelect: document.getElementById('chatModelSelect')
+            chatModelSelect: document.getElementById('chatModelSelect'),
+            // ML Test
+            mlTestInput: document.getElementById('mlTestInput'),
+            mlTestBtn: document.getElementById('mlTestBtn'),
+            mlTestError: document.getElementById('mlTestError'),
+            mlTestResults: document.getElementById('mlTestResults'),
+            mlTestScore: document.getElementById('mlTestScore'),
+            mlTestCategory: document.getElementById('mlTestCategory'),
+            mlTestEls: document.getElementById('mlTestEls'),
+            // ML Benchmark overlay
+            apiBenchmarkWrap: document.getElementById('apiBenchmarkWrap'),
+            mlTestBenchmarkScore: document.getElementById('mlTestBenchmarkScore'),
+            mlTestBenchmarkCategory: document.getElementById('mlTestBenchmarkCategory'),
+            mlTestDiffBadge: document.getElementById('mlTestDiffBadge'),
+            // Dataset Explorer
+            datasetSearch: document.getElementById('datasetSearch'),
+            datasetBody: document.getElementById('datasetBody'),
+            datasetLoader: document.getElementById('datasetLoader'),
+            datasetTotal: document.getElementById('datasetTotal'),
+            datasetShowing: document.getElementById('datasetShowing')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -229,6 +251,8 @@ class App {
         this.$.diffToggle.addEventListener('click', () => this.toggleDiff());
         // Variant tabs
         this.$.varTabs.forEach(t => t.addEventListener('click', () => { this.$.varTabs.forEach(x => x.classList.remove('active')); t.classList.add('active'); this.variant = t.dataset.var; this.showVariant(); }));
+        // Local ML Tester
+        this.$.mlTestBtn?.addEventListener('click', () => this.submitMLTest());
         // Library
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
@@ -308,6 +332,10 @@ class App {
             }
         });
         this.$.chatClearBtn?.addEventListener('click', () => this.clearChat());
+
+        this.$.datasetSearch?.addEventListener('input', () => {
+            this.renderDatasetTable(this.$.datasetSearch.value);
+        });
     }
 
     async init() {
@@ -500,6 +528,88 @@ class App {
         if (actualView === 'challenges') this.renderChallengesList();
         if (actualView === 'chat') this.loadChat();
         if (actualView === 'cheatsheet') this.buildCheatSheet();
+        if (actualView === 'dataset') this.loadDataset();
+    }
+
+    /* ===== Dataset Explorer ===== */
+    async loadDataset(force = false) {
+        if (this.datasetLoaded && !force) {
+            this.renderDatasetTable(this.$.datasetSearch?.value || '');
+            return;
+        }
+
+        if (this.$.datasetLoader) this.$.datasetLoader.style.display = 'flex';
+
+        try {
+            const response = await this.apiFetch(['/ml/dataset']);
+            const payload = await response.json();
+
+            if (!response.ok || !payload?.success) {
+                throw new Error(payload?.error || 'Failed to load training dataset.');
+            }
+
+            this.datasetRows = Array.isArray(payload.data) ? payload.data : [];
+            this.datasetLoaded = true;
+            if (this.$.datasetTotal) {
+                this.$.datasetTotal.textContent = String(payload.total ?? this.datasetRows.length);
+            }
+            this.renderDatasetTable(this.$.datasetSearch?.value || '');
+        } catch (error) {
+            this.datasetRows = [];
+            this.datasetFiltered = [];
+            if (this.$.datasetBody) {
+                this.$.datasetBody.innerHTML = `<tr><td colspan="5" style="padding:14px;color:var(--red);">${this.esc(error.message || 'Failed to load dataset.')}</td></tr>`;
+            }
+            if (this.$.datasetShowing) this.$.datasetShowing.textContent = '0';
+            if (this.$.datasetTotal) this.$.datasetTotal.textContent = '0';
+        } finally {
+            if (this.$.datasetLoader) this.$.datasetLoader.style.display = 'none';
+        }
+    }
+
+    renderDatasetTable(query = '') {
+        if (!this.$.datasetBody) return;
+
+        const q = String(query || '').trim().toLowerCase();
+        this.datasetFiltered = this.datasetRows.filter((row) => {
+            if (!q) return true;
+            const prompt = String(row.prompt_text || row.prompt || '').toLowerCase();
+            const category = String(row.category || '').toLowerCase();
+            const tone = String(row.tone || '').toLowerCase();
+            const score = String(row.score || '').toLowerCase();
+            return prompt.includes(q) || category.includes(q) || tone.includes(q) || score.includes(q);
+        });
+
+        if (this.$.datasetShowing) this.$.datasetShowing.textContent = String(this.datasetFiltered.length);
+
+        if (!this.datasetFiltered.length) {
+            this.$.datasetBody.innerHTML = '<tr><td colspan="5" style="padding:14px;color:var(--tx3);">No dataset rows match your filter.</td></tr>';
+            return;
+        }
+
+        this.$.datasetBody.innerHTML = this.datasetFiltered.map((row) => {
+            const prompt = this.esc(String(row.prompt_text || row.prompt || ''));
+            const score = this.esc(String(row.score ?? ''));
+            const category = this.esc(String(row.category || ''));
+            const tone = this.esc(String(row.tone || ''));
+
+            const flags = [];
+            if (String(row.has_role) === '1') flags.push('Role');
+            if (String(row.has_format) === '1') flags.push('Format');
+            if (String(row.has_constraints) === '1') flags.push('Constraints');
+            if (String(row.has_examples) === '1') flags.push('Examples');
+            if (String(row.has_context) === '1') flags.push('Context');
+
+            const elements = flags.length ? flags.join(', ') : 'None';
+
+            return `<tr>
+                <td style="max-width:540px;">${prompt}</td>
+                <td>${score}</td>
+                <td>${category}</td>
+                <td>${tone}</td>
+                <td>${this.esc(elements)}</td>
+            </tr>`;
+        }).join('');
     }
 
     /* ===== API Key ===== */
@@ -933,6 +1043,98 @@ class App {
         this.updateAnalyzeButtonState();
         this.$.input.focus();
         this.saveDraft();
+    }
+
+    /* ===== Local ML Tester ===== */
+    async submitMLTest() {
+        const text = this.$.mlTestInput.value.trim();
+        if (!text) return;
+        
+        this.$.mlTestBtn.disabled = true;
+        this.$.mlTestBtn.textContent = 'Analyzing...';
+        this.$.mlTestError.style.display = 'none';
+        this.$.mlTestResults.style.display = 'none';
+        
+        try {
+            const r = await fetch(`${this.API}/ml/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: text })
+            });
+            const d = await r.json();
+            
+            if (!d.success || !d.prediction) throw new Error(d.error || 'Failed to get local ML predictions');
+            
+            const p = d.prediction;
+            const hasScore = p.score != null && p.score !== '';
+            const isCalibrated = p.score_calibrated !== false;
+            if (hasScore) {
+                this.$.mlTestScore.textContent = isCalibrated
+                    ? `${p.score}/10`
+                    : `${p.score}/10 (uncalibrated)`;
+            } else {
+                this.$.mlTestScore.textContent = 'Failed';
+            }
+            
+            this.$.mlTestCategory.textContent = p.category || '--';
+            if (p.category_confidence) {
+                this.$.mlTestCategory.textContent += ` (${Math.round(p.category_confidence * 100)}%)`;
+            }
+            
+            this.$.mlTestEls.innerHTML = '';
+            if (p.elements) {
+                for (const [key, val] of Object.entries(p.elements)) {
+                    if (val) {
+                        const el = document.createElement('span');
+                        el.className = 'el-pill';
+                        el.innerHTML = `<span class="el-dot"></span>${key.replace('has_', '')}`;
+                        this.$.mlTestEls.appendChild(el);
+                    }
+                }
+                if (this.$.mlTestEls.innerHTML === '') {
+                    this.$.mlTestEls.innerHTML = '<span style="color:var(--tx2);font-size:14px;">No elements detected.</span>';
+                }
+            } else {
+                this.$.mlTestEls.innerHTML = '<span style="color:var(--tx2);font-size:14px;">No element data.</span>';
+            }
+            
+            if (d.apiBenchmark) {
+                this.$.apiBenchmarkWrap.style.display = 'block';
+                const groqInfo = d.apiBenchmark;
+                this.$.mlTestBenchmarkScore.textContent = groqInfo.score ? `${groqInfo.score}/10` : '--/10';
+                this.$.mlTestBenchmarkCategory.textContent = groqInfo.category || '--';
+                
+                if (p.score != null && groqInfo.score != null) {
+                    const diff = (parseFloat(p.score) - parseFloat(groqInfo.score)).toFixed(1);
+                    const isExact = parseFloat(p.score) === parseFloat(groqInfo.score);
+                    if (isExact) {
+                        this.$.mlTestDiffBadge.textContent = 'Exact Match!';
+                        this.$.mlTestDiffBadge.style.background = 'var(--green)';
+                    } else {
+                        const prefix = diff > 0 ? '+' : '';
+                        this.$.mlTestDiffBadge.textContent = isCalibrated
+                            ? `${prefix}${diff} Difference`
+                            : `${prefix}${diff} Difference (uncalibrated)`;
+                        this.$.mlTestDiffBadge.style.background = isCalibrated
+                            ? (Math.abs(diff) <= 1.0 ? 'var(--amber)' : 'var(--red)')
+                            : 'var(--tx3)';
+                    }
+                } else {
+                    this.$.mlTestDiffBadge.textContent = 'API Failed';
+                    this.$.mlTestDiffBadge.style.background = 'var(--tx3)';
+                }
+            } else {
+                this.$.apiBenchmarkWrap.style.display = 'none';
+            }
+            
+            this.$.mlTestResults.style.display = 'block';
+        } catch (e) {
+            this.$.mlTestError.textContent = e.message;
+            this.$.mlTestError.style.display = 'block';
+        } finally {
+            this.$.mlTestBtn.disabled = false;
+            this.$.mlTestBtn.textContent = 'Analyze with Local AI';
+        }
     }
 
     /* ===== Library ===== */

@@ -12,3 +12,9 @@ backend/.env
 .env.test.local
 .env.production.local
 .DS_Store
+
+# Python / ML
+__pycache__/
+*.pyc
+ml_models/saved_models/
+ml_models/dataset/
