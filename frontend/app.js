@@ -742,7 +742,7 @@ class App {
         const badge = this.$.apiDot;
         const setBadge = (configured) => {
             if (!badge) return;
-            badge.textContent = configured ? 'Ready ✓' : 'Not set ✗';
+            badge.textContent = configured ? 'Key detected ✓' : 'Not set ✗';
             badge.classList.toggle('on', configured);
             badge.style.background = configured ? 'var(--green)' : 'var(--tx3)';
             badge.style.boxShadow = configured ? '0 0 0 3px rgba(5,150,105,0.15)' : 'none';

@@ -355,8 +355,8 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
                 const wasSessionKey = !!(req.headers['x-groq-api-key'] || req.body?.apiKey);
                 return res.status(401).json({ 
                     error: wasSessionKey 
-                        ? 'Invalid Session API key. Please check the key you entered.' 
-                        : 'Invalid Server API key. Please check the GROQ_API_KEY environment variable.' 
+                        ? 'Invalid Session API key. Please paste a valid Groq key in Settings and try again.' 
+                        : 'Invalid Server API key. Update GROQ_API_KEY in environment variables and restart, or use a Session key in Settings.' 
                 });
             }
             if (response.status === 429) return res.status(429).json({ error: 'Rate limit exceeded. Please wait a moment and try again.' });
