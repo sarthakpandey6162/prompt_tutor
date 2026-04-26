@@ -2,6 +2,8 @@ node_modules/
 backend/prompts.db
 backend/prompts.json
 backend/settings.json
+backend/conversations.json
+backend/chats.json
 backend/.env
 *.log
 .gemini/
@@ -16,5 +18,7 @@ backend/.env
 # Python / ML
 __pycache__/
 *.pyc
+.venv/
 ml_models/saved_models/
 ml_models/dataset/
+ml_models/dataset_downlaoded/

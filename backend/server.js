@@ -2,6 +2,8 @@
    AI Prompt Tutor — Express Backend Server
    ======================================== */
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -217,7 +219,7 @@ app.get('/api/usage', (req, res) => {
 
 // --- Analyze Prompt ---
 app.post('/api/analyze', async (req, res) => {
-    const { prompt, mode, model } = req.body;
+    const { prompt, mode, model, engine } = req.body;
 
     if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'Prompt is required' });
@@ -231,6 +233,64 @@ app.post('/api/analyze', async (req, res) => {
     const selectedMode = MODE_PROFILES[mode] ? mode : 'balanced';
     const profile = MODE_PROFILES[selectedMode];
 
+    // Cached analysis feature removed as requested. Every request will be analyzed live.
+
+    // --- ML ONLY MODE ---
+    if (engine === 'ml') {
+        console.log("Analyzing with LOCAL ML Engine (skip Groq API)");
+        let mlPrediction = null;
+        try {
+            mlPrediction = await fetchMLPrediction(cleanPrompt);
+        } catch (e) {
+            console.warn('[ML] Prediction fetch failed:', e.message);
+        }
+        if (!mlPrediction) {
+            return res.status(503).json({ error: 'Local ML service is unavailable. Start ml_models/serve.py on port 5000 and try again.' });
+        }
+        
+        let analysis = {
+            score: mlPrediction.score || 0,
+            category: mlPrediction.category || 'Unknown',
+            elements: mlPrediction.elements || detectPromptElements(cleanPrompt),
+            scoreLabel: '',
+            strengths: ["Analyzed successfully with local PyTorch Model."],
+            missing: ["Text generation is disabled in Local ML mode."],
+            proTips: [],
+            improved: {
+                default: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation.",
+                developer: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation.",
+                beginner: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation."
+            }
+        };
+        
+        const s = analysis.score;
+        if (s <= 3) analysis.scoreLabel = 'Needs Major Work';
+        else if (s <= 5) analysis.scoreLabel = 'Good Foundation';
+        else if (s <= 7) analysis.scoreLabel = 'Good Prompt';
+        else if (s <= 8) analysis.scoreLabel = 'Strong Prompt';
+        else analysis.scoreLabel = 'Professional-Grade';
+        
+        const id = saveAnalysis(cleanPrompt, analysis, 'ml');
+        return res.json({ 
+            success: true, 
+            id,
+            analysis,
+            cached: false,
+            mode: selectedMode,
+            model: 'Local-PyTorch-ML',
+            tokenUsage: 0,
+            budget: getBudgetSnapshot(),
+            mlModel: {
+                used: true,
+                score: mlPrediction.score,
+                category: mlPrediction.category,
+                categoryConfidence: mlPrediction.category_confidence,
+                elements: mlPrediction.elements
+            }
+        });
+    }
+    // --- END ML ONLY MODE ---
+
     const estimatedTokens = estimateRequestTokens(cleanPrompt, profile);
     const budgetBefore = getBudgetSnapshot();
     if (budgetBefore.remaining < estimatedTokens) {
@@ -239,18 +299,6 @@ app.post('/api/analyze', async (req, res) => {
             budget: budgetBefore,
             estimatedTokens,
             mode: selectedMode
-        });
-    }
-
-    const existing = findAnalysisByPrompt(cleanPrompt);
-    if (existing) {
-        return res.json({
-            success: true,
-            id: existing.id,
-            analysis: existing,
-            cached: true,
-            mode: selectedMode,
-            budget: getBudgetSnapshot()
         });
     }
 
@@ -353,31 +401,8 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
             };
         }
 
-        // ── CUSTOM ML MODEL INTEGRATION ──────────────────────────
-        // Call our trained LSTM/CNN models for scoring and classification.
-        // The ML model's predictions OVERRIDE the API's score and category,
-        // making the analytical engine our own trained model.
+        // ── NO CUSTOM ML OVERRIDE FOR API MODE ───────────────────
         let mlPrediction = null;
-        try {
-            mlPrediction = await fetchMLPrediction(cleanPrompt);
-        } catch (e) {
-            console.warn('[ML] Prediction fetch failed:', e.message);
-        }
-
-        if (mlPrediction && mlPrediction.model_used) {
-            // Override score with LSTM prediction
-            if (mlPrediction.score != null) {
-                analysis.score = mlPrediction.score;
-            }
-            // Override category with CNN prediction
-            if (mlPrediction.category != null) {
-                analysis.category = mlPrediction.category;
-            }
-            // Override elements with LSTM element detector
-            if (mlPrediction.elements != null) {
-                analysis.elements = mlPrediction.elements;
-            }
-        }
 
         // Assign score label based on (possibly ML-overridden) score
         const s = analysis.score;
@@ -389,7 +414,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         // ── END ML MODEL INTEGRATION ─────────────────────────────
 
         // Save to database
-        const id = saveAnalysis(prompt.trim(), analysis);
+        const id = saveAnalysis(prompt.trim(), analysis, 'api');
         
         res.json({ 
             success: true, 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Train All Models — Run this single script to:
 1. Generate dataset from prompts.json + synthetic data
 2. Train LSTM scorer
@@ -27,7 +27,7 @@ def run_script(name, script):
         print(f"\n❌ {name} failed with code {result.returncode}")
         sys.exit(1)
     
-    print(f"\n✅ {name} completed successfully")
+    print(f"\n[OK] {name} completed successfully")
 
 
 def main():

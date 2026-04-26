@@ -1,4 +1,4 @@
-"""
+﻿"""
 Flask Prediction Server — Serves trained LSTM/CNN models (PyTorch).
 Runs on port 5000 and provides a /predict endpoint.
 
@@ -164,7 +164,7 @@ score_calibration = None
 try:
     with open(TOKENIZER_PATH, 'rb') as f:
         tokenizer = pickle.load(f)
-    print("  ✅ Tokenizer loaded")
+    print("  [OK] Tokenizer loaded")
 except Exception as e:
     print(f"  ❌ Tokenizer: {e}")
 
@@ -177,7 +177,7 @@ try:
     ).to(device)
     scorer_model.load_state_dict(checkpoint['model_state_dict'])
     scorer_model.eval()
-    print("  ✅ Scorer BiLSTM loaded")
+    print("  [OK] Scorer BiLSTM loaded")
 except Exception as e:
     print(f"  ❌ Scorer: {e}")
 
@@ -190,7 +190,7 @@ try:
     ).to(device)
     classifier_model.load_state_dict(checkpoint['model_state_dict'])
     classifier_model.eval()
-    print("  ✅ Classifier CNN loaded")
+    print("  [OK] Classifier CNN loaded")
 except Exception as e:
     print(f"  ❌ Classifier: {e}")
 
@@ -204,14 +204,14 @@ try:
     ).to(device)
     element_model.load_state_dict(checkpoint['model_state_dict'])
     element_model.eval()
-    print("  ✅ Element Detector BiLSTM loaded")
+    print("  [OK] Element Detector BiLSTM loaded")
 except Exception as e:
     print(f"  ❌ Element Detector: {e}")
 
 try:
     with open(LABEL_ENCODER_PATH, 'rb') as f:
         label_encoder = pickle.load(f)
-    print("  ✅ Label encoder loaded")
+    print("  [OK] Label encoder loaded")
 except Exception as e:
     print(f"  ❌ Label encoder: {e}")
 
@@ -219,7 +219,7 @@ try:
     if os.path.exists(CALIBRATION_PATH):
         with open(CALIBRATION_PATH, 'r', encoding='utf-8') as f:
             score_calibration = json.load(f)
-        print("  ✅ Score calibration loaded")
+        print("  [OK] Score calibration loaded")
     else:
         print("  ℹ️  Score calibration not found (using raw score)")
 except Exception as e:

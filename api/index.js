@@ -79,6 +79,33 @@ function isAuthError(status) {
     return status === 401 || status === 403;
 }
 
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
+
+async function fetchMLPrediction(promptText) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(`${ML_SERVICE_URL}/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText }),
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            console.warn(`ML service returned ${response.status}`);
+            return null;
+        }
+
+        const result = await response.json();
+        return result;
+    } catch (err) {
+        return null;
+    }
+}
+
 async function fetchGroqWithKeyFallback(req, baseBody) {
     const candidates = getApiKeyCandidates(req);
     let lastError = null;
@@ -321,13 +348,94 @@ Respond ONLY with valid JSON:
 // --- Prompt Analysis ---
 app.post('/api/analyze', async (req, res) => {
     try {
-        const { prompt, mode } = req.body;
+        const { prompt, mode, engine } = req.body;
         if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'Prompt is required' });
         if (prompt.trim().length > 8000) return res.status(400).json({ error: 'Prompt too long. Keep it under 8000 characters.' });
 
         const cleanPrompt = prompt.trim();
         const selectedMode = MODE_PROFILES[mode] ? mode : 'balanced';
         const profile = MODE_PROFILES[selectedMode];
+
+        const existing = promptHistory.find(p => p.prompt_text === cleanPrompt);
+        if (existing) {
+            return res.json({ success: true, id: existing.id, analysis: existing, cached: true, mode: selectedMode, budget: getBudgetSnapshot() });
+        }
+
+        // --- ML ONLY MODE ---
+        if (engine === 'ml') {
+            let mlPrediction = null;
+            try {
+                mlPrediction = await fetchMLPrediction(cleanPrompt);
+            } catch (e) {
+                console.warn('[ML] Prediction fetch failed:', e.message);
+            }
+            if (!mlPrediction) {
+                return res.status(503).json({ error: 'Local ML service is unavailable. Start ml_models/serve.py on port 5000 and try again.' });
+            }
+            
+            let analysis = {
+                score: mlPrediction.score || 0,
+                category: mlPrediction.category || 'Unknown',
+                elements: mlPrediction.elements || detectPromptElements(cleanPrompt),
+                scoreLabel: '',
+                strengths: ["Analyzed successfully with local PyTorch Model."],
+                missing: ["Text generation is disabled in Local ML mode."],
+                proTips: [],
+                improved: {
+                    default: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation.",
+                    developer: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation.",
+                    beginner: "Prompt rewrites are disabled in Local ML mode. Switch to Cloud API to enable text generation."
+                }
+            };
+            
+            const s = analysis.score;
+            if (s <= 3) analysis.scoreLabel = 'Needs Major Work';
+            else if (s <= 5) analysis.scoreLabel = 'Good Foundation';
+            else if (s <= 7) analysis.scoreLabel = 'Good Prompt';
+            else if (s <= 8) analysis.scoreLabel = 'Strong Prompt';
+            else analysis.scoreLabel = 'Professional-Grade';
+            
+            const entry = {
+                id: Date.now(),
+                prompt_text: cleanPrompt,
+                score: analysis.score,
+                category: analysis.category,
+                scoreLabel: analysis.scoreLabel,
+                tone: '',
+                elements: analysis.elements,
+                strengths: analysis.strengths,
+                missing: analysis.missing,
+                tips: analysis.proTips,
+                improved: analysis.improved.default,
+                improvedDeveloper: analysis.improved.developer,
+                improvedBeginner: analysis.improved.beginner,
+                isSaved: false,
+                tags: [],
+                created_at: new Date().toISOString()
+            };
+
+            promptHistory.unshift(entry);
+            if (promptHistory.length > 200) promptHistory = promptHistory.slice(0, 200);
+
+            return res.json({ 
+                success: true, 
+                id: entry.id,
+                analysis: entry,
+                cached: false,
+                mode: selectedMode,
+                model: 'Local-PyTorch-ML',
+                tokenUsage: 0,
+                budget: getBudgetSnapshot(),
+                mlModel: {
+                    used: true,
+                    score: mlPrediction.score,
+                    category: mlPrediction.category,
+                    categoryConfidence: mlPrediction.category_confidence,
+                    elements: mlPrediction.elements
+                }
+            });
+        }
+        // --- END ML ONLY MODE ---
 
         const estimatedTokens = estimateRequestTokens(cleanPrompt, profile);
         const budgetBefore = getBudgetSnapshot();
@@ -341,11 +449,6 @@ app.post('/api/analyze', async (req, res) => {
         }
 
         if (!getApiKeyFromRequest(req)) return res.status(400).json({ error: 'API key is required for every request. Please enter your Groq API key.' });
-
-        const existing = promptHistory.find(p => p.prompt_text === cleanPrompt);
-        if (existing) {
-            return res.json({ success: true, id: existing.id, analysis: existing, cached: true, mode: selectedMode, budget: getBudgetSnapshot() });
-        }
 
         const systemPrompt = `You are a prompt analysis expert. Analyze the user's prompt and respond ONLY with valid JSON, no extra text:
 {

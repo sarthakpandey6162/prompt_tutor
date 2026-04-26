@@ -41,6 +41,18 @@
             <img src="logo.svg" alt="PT" class="sb-logo">
             <span class="sb-brand">Prompt Tutor</span>
         </div>
+        <!-- Engine Toggle -->
+        <div class="engine-switch" id="engineSwitch">
+            <button class="engine-opt active" id="engineOptApi" data-engine="api">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Cloud API
+            </button>
+            <button class="engine-opt" id="engineOptMl" data-engine="ml">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                Local ML
+            </button>
+            <div class="engine-slider" id="engineSlider"></div>
+        </div>
         <nav class="sb-nav">
             <button class="sb-link active" data-view="craft">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -107,6 +119,7 @@
                                 <h1 class="pg-title">Craft Your Prompt</h1>
                                 <p class="pg-sub">Paste any prompt. Get instant scoring, actionable feedback, and a pro-level rewrite.</p>
                             </div>
+
                         </div>
                         <!-- Load Example Dropdown (replaces 5 template buttons) -->
                         <div class="example-dropdown-wrap" id="exampleDropdownWrap">
@@ -377,46 +390,92 @@
         <section class="view" id="view-stats">
             <div class="page-scroll">
                 <div class="page-wrap stagger-in">
-                    <h1 class="pg-title">Your Progress</h1>
-                    <p class="pg-sub">Track your prompt engineering journey</p>
-                    <div class="stat-cards">
-                        <div class="stat-card sc-indigo"><div class="sc-num" id="sTot">0</div><div class="sc-lbl">Total Analyzed</div></div>
-                        <div class="stat-card sc-amber"><div class="sc-num" style="display:flex;align-items:center;justify-content:center"><span id="sAvg">0</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:4px;color:inherit;opacity:0.8"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div><div class="sc-lbl">Average Score</div></div>
-                        <div class="stat-card sc-green"><div class="sc-num" id="sBest">0</div><div class="sc-lbl">Best Score</div><div class="sc-sub">out of 10</div></div>
-                        <div class="stat-card sc-blue"><div class="sc-num" id="sWeek">0</div><div class="sc-lbl">This Week</div></div>
+                    <div class="stats-header">
+                        <div>
+                            <h1 class="pg-title">Your Progress</h1>
+                            <p class="pg-sub">Track your prompt engineering journey</p>
+                        </div>
+                        <div class="insight-pill" id="trendExplanationWrap" style="display:none;">
+                            <span class="insight-icon">✨</span>
+                            <span id="trendExplanation"></span>
+                        </div>
                     </div>
-                    <div class="chart-hd">
-                        <h3 class="chart-h">Score Trend</h3>
-                        <span class="chart-sub flat" id="trendLabel">-- Stable</span>
-                    </div>
-                    <p class="chart-desc">Recent analyses over time</p>
-                    <p class="trend-explanation" id="trendExplanation" style="font-size:13px;margin:6px 0 0;color:var(--tx2);"></p>
-                    <div class="line-chart-wrap" id="lineChartWrap">
-                        <canvas id="lineChart" class="line-chart-canvas"></canvas>
-                    </div>
-
-                    <!-- Layout for Split Charts below Line Chart -->
-                    <div class="chart-row">
-                        <!-- Score Distribution -->
-                        <div class="chart-card fb-card-half dist-card">
-                            <h3 class="chart-h">Score Distribution</h3>
-                            <p class="dist-note">How your prompts are split by quality bands</p>
-                            <div class="dist-legend" aria-hidden="true">
-                                <span class="dist-pill weak" data-band="weak"><span class="dist-icon" aria-hidden="true">⚠</span>Weak</span>
-                                <span class="dist-pill mid" data-band="mid"><span class="dist-icon" aria-hidden="true">◐</span>Needs Work</span>
-                                <span class="dist-pill high" data-band="high"><span class="dist-icon" aria-hidden="true">★</span>High</span>
+                    
+                    <div class="bento-grid">
+                        <!-- Top Metrics Row -->
+                        <div class="bento-metrics">
+                            <div class="bento-card metric-card mc-primary">
+                                <div class="mc-bg"></div>
+                                <div class="mc-content">
+                                    <div class="mc-lbl">Total Analyzed</div>
+                                    <div class="mc-num" id="sTot">0</div>
+                                </div>
                             </div>
-                            <div class="chart-canvas-wrap">
-                                <canvas id="barChart"></canvas>
+                            <div class="bento-card metric-card mc-amber">
+                                <div class="mc-bg"></div>
+                                <div class="mc-content">
+                                    <div class="mc-lbl">Average Score</div>
+                                    <div class="mc-num" style="display:flex;align-items:center;">
+                                        <span id="sAvg">0</span>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:8px;opacity:0.8"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bento-card metric-card mc-green">
+                                <div class="mc-bg"></div>
+                                <div class="mc-content">
+                                    <div class="mc-lbl">Best Score <span class="mc-sub">/10</span></div>
+                                    <div class="mc-num" id="sBest">0</div>
+                                </div>
+                            </div>
+                            <div class="bento-card metric-card mc-blue">
+                                <div class="mc-bg"></div>
+                                <div class="mc-content">
+                                    <div class="mc-lbl">This Week</div>
+                                    <div class="mc-num" id="sWeek">0</div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Element Usage Radar Chart -->
-                        <div class="chart-card fb-card-half radar-card">
-                            <h3 class="chart-h">Prompt Elements</h3>
-                            <div class="radar-wrap">
-                                <canvas id="elementRadar" aria-label="Prompt elements pentagon chart"></canvas>
-                                <p class="radar-note">Coverage across Role, Format, Constraints, Examples, and Context.</p>
+                        <!-- Hero Chart: Line Trend -->
+                        <div class="bento-card hero-chart-card">
+                            <div class="chart-hd">
+                                <div>
+                                    <h3 class="chart-h">Score Trend</h3>
+                                    <p class="chart-desc">Recent analyses over time</p>
+                                </div>
+                                <div class="chart-sub-pill" id="trendLabel">
+                                    <span class="trend-dot"></span> <span id="trendLabelText">Stable</span>
+                                </div>
+                            </div>
+                            <div class="line-chart-wrap" id="lineChartWrap">
+                                <canvas id="lineChart" class="line-chart-canvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Charts Row -->
+                        <div class="bento-bottom-row">
+                            <!-- Score Distribution -->
+                            <div class="bento-card dist-card">
+                                <h3 class="chart-h">Score Distribution</h3>
+                                <p class="chart-desc">How your prompts are split by quality</p>
+                                <div class="dist-legend" aria-hidden="true">
+                                    <span class="dist-pill weak" data-band="weak"><span class="dist-icon"></span>Weak</span>
+                                    <span class="dist-pill mid" data-band="mid"><span class="dist-icon"></span>Needs Work</span>
+                                    <span class="dist-pill high" data-band="high"><span class="dist-icon"></span>High</span>
+                                </div>
+                                <div class="chart-canvas-wrap dist-canvas-wrap">
+                                    <canvas id="barChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Element Usage Radar Chart -->
+                            <div class="bento-card radar-card">
+                                <h3 class="chart-h">Element Mastery</h3>
+                                <p class="chart-desc">Coverage across key prompt components</p>
+                                <div class="radar-wrap">
+                                    <canvas id="elementRadar"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -426,22 +485,50 @@
 
         <!-- === VIEW: LESSONS === -->
         <section class="view" id="view-lessons">
-            <div class="page-scroll">
-                <div class="page-wrap">
-                    <h1 class="pg-title">Lessons</h1>
-                    <p class="pg-sub">Master prompt engineering one concept at a time</p>
-                    <p class="pg-sub" id="lessonProgress">0/5 completed</p>
-
-                    <div class="lesson-list" id="lessonList"></div>
-
-                    <div class="lesson-detail" id="lessonDetail" style="display:none">
-                        <button class="btn btn-ghost btn-sm" id="lessonBack">← Back to lessons</button>
-                        <h2 class="lesson-title" id="lessonTitle"></h2>
-                        <p class="lesson-desc" id="lessonDesc"></p>
-                        <div class="lesson-content" id="lessonContent"></div>
-                        <button class="btn btn-primary" id="lessonCompleteBtn">Mark Complete ✓</button>
+            <div class="learning-layout">
+                <!-- Syllabus Sidebar -->
+                <aside class="learning-sidebar">
+                    <div class="learning-head">
+                        <h2 class="learning-brand">Prompt Academy</h2>
+                        <div class="learning-progress">
+                            <div class="progress-bar"><div class="progress-fill" id="lessonProgressBar"></div></div>
+                            <span id="lessonProgressText">0/5 completed</span>
+                        </div>
                     </div>
-                </div>
+                    <div class="learning-syllabus" id="lessonSyllabus"></div>
+                </aside>
+                
+                <!-- Main Notebook Area -->
+                <main class="learning-main">
+                    <!-- Empty State -->
+                    <div class="notebook-empty" id="notebookEmpty">
+                        <div class="notebook-empty-icon">🎓</div>
+                        <h2>Welcome to Prompt Academy</h2>
+                        <p>Select a module from the syllabus to begin your guided learning journey.</p>
+                        <button class="btn btn-primary" id="startCourseBtn">Start Course</button>
+                    </div>
+                    
+                    <!-- Notebook Page -->
+                    <div class="notebook-page" id="notebookPage" style="display: none;">
+                        <div class="notebook-paper">
+                            <div class="notebook-header">
+                                <span class="notebook-module" id="notebookModule">Module 1</span>
+                                <h1 class="notebook-title" id="notebookTitle">Title</h1>
+                                <p class="notebook-desc" id="notebookDesc">Desc</p>
+                            </div>
+                            <div class="notebook-content" id="lessonContent"></div>
+                            
+                            <div class="notebook-footer">
+                                <button class="btn btn-outline" id="lessonCompleteBtn">
+                                    <span class="check-circle"></span> Mark as Complete
+                                </button>
+                                <button class="btn btn-primary" id="nextLessonBtn">
+                                    Next Lesson →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
             </div>
         </section>
 
@@ -482,55 +569,130 @@
         <!-- === VIEW: LOCAL ML TEST === -->
         <section class="view" id="view-mltest">
             <div class="page-scroll">
-                <div class="page-wrap">
-                    <h1 class="pg-title">Local ML Standalone Tester</h1>
-                    <p class="pg-sub">Query your locally trained PyTorch models and compare them instantly against the Groq API benchmark.</p>
-                    
-                    <div class="test-lab-box" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-top:24px;">
-                        <textarea id="mlTestInput" placeholder="Enter a prompt to analyze locally..." spellcheck="false" style="width:100%;height:150px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;color:var(--tx);font-family:var(--font);resize:vertical;margin-bottom:16px;"></textarea>
-                        
-                        <div style="display:flex;justify-content:flex-end;">
-                            <button class="btn btn-primary" id="mlTestBtn">Analyze with Local AI</button>
+                <div class="page-wrap ml-page stagger-in">
+                    <!-- Hero Header -->
+                    <div class="ml-hero">
+                        <div class="ml-hero-glow"></div>
+                        <div class="ml-hero-content">
+                            <div class="ml-hero-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                            </div>
+                            <div>
+                                <h1 class="pg-title">Local ML Standalone Tester</h1>
+                                <p class="pg-sub">Query your locally trained PyTorch models and compare them instantly against the Groq API benchmark.</p>
+                            </div>
                         </div>
-                        
-                        <div id="mlTestError" style="color:var(--red);margin-top:16px;display:none;font-size:14px;font-weight:500;"></div>
+                    </div>
 
-                        <div id="mlTestResults" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:24px;">
-                            <h3 style="font-size:18px;font-weight:700;margin-bottom:16px;color:var(--tx);">Local Model Predictions</h3>
-                            
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
-                                <div style="background:var(--bg);border-radius:var(--r-md);padding:16px;border:1px solid var(--border);">
-                                    <div style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;">Predicted Score</div>
-                                    <div style="font-size:32px;font-weight:800;color:var(--accent);" id="mlTestScore">--</div>
+                    <!-- Input Card -->
+                    <div class="ml-input-card">
+                        <div class="ml-input-header">
+                            <div class="ml-input-dot"></div>
+                            <span>Prompt Input</span>
+                        </div>
+                        <textarea id="mlTestInput" class="ml-textarea" placeholder="Enter a prompt to analyze locally..." spellcheck="false"></textarea>
+                        <div class="ml-input-footer">
+                            <div class="ml-input-hint">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                Uses CNN/LSTM models for scoring & classification
+                            </div>
+                            <button class="btn btn-primary ml-analyze-btn" id="mlTestBtn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                Analyze with Local AI
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Error -->
+                    <div id="mlTestError" class="ml-error" style="display:none"></div>
+
+                    <!-- Results -->
+                    <div id="mlTestResults" class="ml-results" style="display:none">
+                        <div class="ml-results-header">
+                            <div class="ml-results-dot"></div>
+                            <h3>Local Model Predictions</h3>
+                        </div>
+
+                        <div class="ml-score-grid">
+                            <!-- Score Card -->
+                            <div class="ml-metric-card ml-metric-score">
+                                <div class="ml-metric-glow"></div>
+                                <div class="ml-metric-label">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    Predicted Score
                                 </div>
-                                <div style="background:var(--bg);border-radius:var(--r-md);padding:16px;border:1px solid var(--border);">
-                                    <div style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;">Predicted Category</div>
-                                    <div style="font-size:32px;font-weight:800;color:var(--accent);" id="mlTestCategory">--</div>
+                                <div class="ml-metric-value" id="mlTestScore">--</div>
+                                <div class="ml-metric-sub">/10</div>
+                            </div>
+                            <!-- Category Card -->
+                            <div class="ml-metric-card ml-metric-category">
+                                <div class="ml-metric-glow"></div>
+                                <div class="ml-metric-label">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                    Predicted Category
+                                </div>
+                                <div class="ml-metric-value" id="mlTestCategory">--</div>
+                            </div>
+                        </div>
+
+                        <!-- Detected Elements -->
+                        <div class="ml-elements-card">
+                            <div class="ml-elements-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                                Detected Elements
+                            </div>
+                            <div class="el-pills ml-el-pills" id="mlTestEls"></div>
+                        </div>
+
+                        <!-- API Benchmark Comparison -->
+                        <div id="apiBenchmarkWrap" class="ml-benchmark" style="display:none;">
+                            <div class="ml-benchmark-header">
+                                <div class="ml-benchmark-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                    <h3>Groq API Benchmark</h3>
+                                </div>
+                                <div id="mlTestDiffBadge" class="ml-diff-badge">-- Difference</div>
+                            </div>
+
+                            <div class="ml-benchmark-grid">
+                                <div class="ml-bench-card">
+                                    <div class="ml-bench-label">Baseline Score</div>
+                                    <div class="ml-bench-value" id="mlTestBenchmarkScore">--</div>
+                                </div>
+                                <div class="ml-bench-card">
+                                    <div class="ml-bench-label">Baseline Category</div>
+                                    <div class="ml-bench-value" id="mlTestBenchmarkCategory">--</div>
                                 </div>
                             </div>
-                            
-                            <div style="margin-top:24px;">
-                                <div style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:12px;">Detected Elements</div>
-                                <div class="el-pills" id="mlTestEls" style="display:flex;flex-wrap:wrap;gap:10px;">
+                        </div>
+
+                        <!-- Before vs After Comparison -->
+                        <div id="mlCompareWrap" class="ml-compare" style="display:none;">
+                            <div class="ml-compare-header">
+                                <div class="ml-benchmark-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                    <h3>Before vs After Comparison</h3>
+                                </div>
+                                <div class="ml-compare-tools">
+                                    <div id="mlCompareDelta" class="ml-diff-badge">--</div>
                                 </div>
                             </div>
 
-                            <div id="apiBenchmarkWrap" style="margin-top:32px;display:none;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                                    <h3 style="font-size:18px;font-weight:700;color:var(--tx);">Groq API Benchmark</h3>
-                                    <div id="mlTestDiffBadge" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff;">-- Difference</div>
+                            <div class="ml-compare-grid">
+                                <div class="ml-compare-card">
+                                    <div class="ml-bench-label">Before</div>
+                                    <pre id="mlBeforePrompt" class="ml-compare-text">--</pre>
+                                    <div id="mlBeforeMeta" class="ml-compare-meta">--</div>
                                 </div>
-                                
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
-                                    <div style="background:var(--bg);border-radius:var(--r-md);padding:16px;border:1px dashed var(--border);">
-                                        <div style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;">Baseline Score</div>
-                                        <div style="font-size:24px;font-weight:700;color:var(--tx2);" id="mlTestBenchmarkScore">--</div>
-                                    </div>
-                                    <div style="background:var(--bg);border-radius:var(--r-md);padding:16px;border:1px dashed var(--border);">
-                                        <div style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;">Baseline Category</div>
-                                        <div style="font-size:24px;font-weight:700;color:var(--tx2);" id="mlTestBenchmarkCategory">--</div>
-                                    </div>
+                                <div class="ml-compare-card">
+                                    <div class="ml-bench-label" id="mlAfterLabel">After (Rule-Based Upgrade)</div>
+                                    <pre id="mlAfterPrompt" class="ml-compare-text">--</pre>
+                                    <div id="mlAfterMeta" class="ml-compare-meta">--</div>
                                 </div>
+                            </div>
+
+                            <div class="ml-compare-actions">
+                                <button class="btn btn-outline" id="mlUseImprovedBtn">Use Improved Prompt</button>
                             </div>
                         </div>
                     </div>
@@ -540,43 +702,66 @@
 
         <!-- === VIEW: DATASET EXPLORER === -->
         <section class="view" id="view-dataset">
-            <div class="dataset-view-header">
-                <div>
-                    <h2 class="dataset-view-title">Training Dataset Explorer</h2>
-                    <p class="dataset-view-subtitle">Browse and search the 5,000+ examples used to train your local models.</p>
-                </div>
-                <div class="dataset-header-actions">
-                    <div class="dataset-search-box">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" id="datasetSearch" placeholder="Filter prompts, categories, or scores...">
+            <div class="page-scroll">
+                <div class="page-wrap ds-page stagger-in">
+                    <!-- Hero Header -->
+                    <div class="ds-hero">
+                        <div class="ds-hero-glow"></div>
+                        <div class="ds-hero-content">
+                            <div class="ds-hero-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                            </div>
+                            <div>
+                                <h1 class="pg-title">Training Dataset Explorer</h1>
+                                <p class="pg-sub">Browse and search the 5,000+ examples used to train your local models.</p>
+                            </div>
+                        </div>
+                        <div class="ds-search-card">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="datasetSearch" class="ds-search-input" placeholder="Filter prompts, categories, or scores...">
+                        </div>
+                    </div>
+
+                    <!-- Stats Bar -->
+                    <div class="ds-stats-bar">
+                        <div class="ds-stat-chip">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                            <span>Total Examples</span>
+                            <strong id="datasetTotal">0</strong>
+                        </div>
+                        <div class="ds-stat-chip ds-stat-accent">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <span>Showing</span>
+                            <strong id="datasetShowing">0</strong>
+                        </div>
+                    </div>
+
+                    <!-- Table Card -->
+                    <div class="ds-table-card">
+                        <div class="ds-table-container">
+                            <table class="ds-table" id="datasetTable">
+                                <thead>
+                                    <tr>
+                                        <th>Prompt Text</th>
+                                        <th style="width:100px;">Score</th>
+                                        <th style="width:140px;">Category</th>
+                                        <th style="width:120px;">Tone</th>
+                                        <th>Elements</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="datasetBody">
+                                    <!-- Rows injected by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Loader -->
+                    <div id="datasetLoader" class="ds-loader">
+                        <div class="ds-loader-spinner"></div>
+                        <p>Loading Training Data...</p>
                     </div>
                 </div>
-            </div>
-
-            <div class="dataset-stats" id="datasetStats">
-                <div class="stat-mini"><span>Total Examples:</span> <strong id="datasetTotal">0</strong></div>
-                <div class="stat-mini"><span>Showing:</span> <strong id="datasetShowing">0</strong></div>
-            </div>
-
-            <div class="dataset-table-container">
-                <table class="dataset-table" id="datasetTable">
-                    <thead>
-                        <tr>
-                            <th>Prompt Text</th>
-                            <th style="width:100px;">Score</th>
-                            <th style="width:140px;">Category</th>
-                            <th style="width:120px;">Tone</th>
-                            <th>Elements</th>
-                        </tr>
-                    </thead>
-                    <tbody id="datasetBody">
-                        <!-- Rows injected by JS -->
-                    </tbody>
-                </table>
-            </div>
-            <div id="datasetLoader" class="dataset-loader">
-                <div class="spinner"></div>
-                <p>Loading Training Data...</p>
             </div>
         </section>
 
@@ -586,6 +771,30 @@
 <!-- Toast Container -->
 <div class="toast-stack" id="toastStack"></div>
 
+<!-- Engine Selection Modal -->
+<div class="modal-wrap" id="engineModal">
+    <div class="modal-overlay" id="engineModalOverlay"></div>
+    <div class="modal-card" style="max-width:500px;">
+        <div style="text-align:center; margin-bottom:24px;">
+            <h2 style="font-size:24px; margin-bottom:8px;">Choose Analysis Engine</h2>
+            <p class="modal-desc" style="margin:0;">Select how you want Prompt Tutor to analyze your inputs.</p>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <button class="btn btn-outline" id="engineApiBtn" style="height:auto; padding:20px; text-align:left; display:flex; flex-direction:column; gap:8px; border-color:var(--border);">
+                <span style="font-weight:700; font-size:16px; color:var(--tx);">1. Cloud API (Groq Llama 3)</span>
+                <span style="font-size:13px; color:var(--tx2); font-weight:500; white-space:normal; line-height:1.5;">Requires API Key. Provides full textual feedback, tips, and intelligent prompt rewrites.</span>
+            </button>
+            
+            <button class="btn btn-outline" id="engineMlBtn" style="height:auto; padding:20px; text-align:left; display:flex; flex-direction:column; gap:8px; border-color:var(--border);">
+                <span style="font-weight:700; font-size:16px; color:var(--tx);">2. Local ML Model (PyTorch)</span>
+                <span style="font-size:13px; color:var(--tx2); font-weight:500; white-space:normal; line-height:1.5;">No API Key needed! Uses your custom trained CNN/LSTM models for scoring & classification. (Text generation is disabled).</span>
+            </button>
+        </div>
+        <div class="modal-status" id="engineModalStatus" style="text-align:center; margin-top:16px;"></div>
+    </div>
+</div>
+
 <!-- Settings Modal -->
 <div class="modal-wrap" id="modal">
     <div class="modal-overlay" id="modalOverlay"></div>
@@ -594,16 +803,28 @@
             <h2>Settings</h2>
             <button class="modal-x" id="modalX">×</button>
         </div>
-        <p class="modal-desc">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis. The key is used only for this session and is not saved.</p>
-        <label class="modal-lbl">API Key</label>
-        <div class="key-input-wrap">
-            <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
-            <button class="key-toggle" id="keyToggle" type="button">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+        
+        <!-- Engine selection toggle inside settings -->
+        <div style="margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:24px;">
+            <label class="modal-lbl" style="margin-bottom:12px; display:block;">Active Engine</label>
+            <div style="display:flex; background:var(--bg); padding:4px; border-radius:var(--r-md); border:1px solid var(--border);">
+                <button class="btn btn-ghost btn-sm" id="setEngineApiBtn" style="flex:1; border-radius:var(--r-sm);">Cloud API</button>
+                <button class="btn btn-ghost btn-sm" id="setEngineMlBtn" style="flex:1; border-radius:var(--r-sm);">Local ML</button>
+            </div>
+            <p id="activeEngineDesc" style="font-size:12px; color:var(--tx3); margin-top:8px;"></p>
         </div>
 
-        <button class="btn btn-primary btn-full" id="saveKeyBtn">Apply Session Key</button>
+        <div id="apiKeyInputRow">
+            <p class="modal-desc" id="apiKeyDescRow" style="margin-bottom:12px;">Enter your <a href="https://console.groq.com/keys" target="_blank">Groq API Key</a> to enable prompt analysis. The key is used only for this session and is not saved.</p>
+            <label class="modal-lbl">API Key</label>
+            <div class="key-input-wrap" style="margin-bottom:16px;">
+                <input type="password" id="apiKeyInput" class="modal-input" placeholder="gsk_...">
+                <button class="key-toggle" id="keyToggle" type="button">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </div>
+            <button class="btn btn-primary btn-full" id="saveKeyBtn">Apply Session Key</button>
+        </div>
         <div class="modal-status" id="modalStatus"></div>
     </div>
 </div>

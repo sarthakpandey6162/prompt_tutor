@@ -1,4 +1,4 @@
-"""
+﻿"""
 Train a BiLSTM model for multi-label element detection.
 Input:  text prompt
 Output: which elements are present (Role, Format, Constraints, Examples, Context)
@@ -270,7 +270,7 @@ def main():
         'num_elements': len(ELEMENT_COLS),
         'element_names': ELEMENT_NAMES,
     }, MODEL_PATH)
-    print(f"\n  ✅ Model saved to: {MODEL_PATH}")
+    print(f"\n  [OK] Model saved to: {MODEL_PATH}")
 
 
 if __name__ == '__main__':

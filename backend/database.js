@@ -55,8 +55,8 @@ function detectPromptElements(text) {
 
 // ===== Prompt Operations =====
 
-function saveAnalysis(promptText, analysis) {
-    const prompts = readJSON(DB_PATH);
+function saveAnalysis(promptText, analysis, engine = 'api') {
+    let prompts = readJSON(DB_PATH);
 
     // Normalize improved: support both object {default,developer,beginner} and legacy string
     let impDefault = '', impDev = '', impBeg = '';
@@ -77,9 +77,21 @@ function saveAnalysis(promptText, analysis) {
         ? analysis.elements
         : detectPromptElements(promptText);
 
+    // Check for existing entry to overwrite instead of duplicate
+    const existingIndex = prompts.findIndex(p => p.prompt_text === promptText);
+    let isSaved = false;
+    let entryId = Date.now();
+    
+    if (existingIndex !== -1) {
+        isSaved = typeof prompts[existingIndex].saved === 'boolean' ? prompts[existingIndex].saved : !!prompts[existingIndex].isSaved;
+        entryId = prompts[existingIndex].id || entryId;
+        prompts.splice(existingIndex, 1);
+    }
+
     const newEntry = {
-        id: Date.now(),
+        id: entryId,
         prompt_text: promptText,
+        engine: engine,
         score: analysis.score,
         category: analysis.category || analysis.label || analysis.verdict || '',
         scoreLabel: analysis.scoreLabel || analysis.label || '',
@@ -91,8 +103,8 @@ function saveAnalysis(promptText, analysis) {
         improved: impDefault,
         improvedDeveloper: impDev,
         improvedBeginner: impBeg,
-        saved: false,
-        isSaved: false,
+        saved: isSaved,
+        isSaved: isSaved,
         created_at: new Date().toISOString()
     };
     
@@ -258,9 +270,9 @@ function setSetting(key, value) {
     writeJSON(SETTINGS_PATH, settings);
 }
 
-function findAnalysisByPrompt(promptText) {
+function findAnalysisByPrompt(promptText, engine = 'api') {
     const prompts = readJSON(DB_PATH);
-    return prompts.find(p => p.prompt_text === promptText) || null;
+    return prompts.find(p => p.prompt_text === promptText && (p.engine === engine || (!p.engine && engine === 'api'))) || null;
 }
 
 function toggleSave(id) {

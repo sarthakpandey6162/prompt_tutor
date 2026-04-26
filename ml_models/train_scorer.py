@@ -1,4 +1,4 @@
-"""
+﻿"""
 Train a BiLSTM model to predict prompt quality score (1-10).
 Input:  text prompt
 Output: quality score (regression)
@@ -264,11 +264,11 @@ def main():
         'hidden_dim': HIDDEN_DIM,
         'max_len': MAX_LEN,
     }, MODEL_PATH)
-    print(f"\n  ✅ Model saved to: {MODEL_PATH}")
+    print(f"\n  [OK] Model saved to: {MODEL_PATH}")
 
     with open(TOKENIZER_PATH, 'wb') as f:
         pickle.dump(tokenizer, f)
-    print(f"  ✅ Tokenizer saved to: {TOKENIZER_PATH}")
+    print(f"  [OK] Tokenizer saved to: {TOKENIZER_PATH}")
 
 
 if __name__ == '__main__':

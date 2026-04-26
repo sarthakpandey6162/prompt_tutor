@@ -1,4 +1,4 @@
-"""
+﻿"""
 Train a 1D CNN model to classify prompt category.
 Input:  text prompt
 Output: category (Analytical, Creative, Technical, Directive, Casual, Formal)
@@ -277,11 +277,11 @@ def main():
         'num_classes': len(CATEGORIES),
         'categories': CATEGORIES,
     }, MODEL_PATH)
-    print(f"\n  ✅ Model saved to: {MODEL_PATH}")
+    print(f"\n  [OK] Model saved to: {MODEL_PATH}")
 
     with open(LABEL_ENCODER_PATH, 'wb') as f:
         pickle.dump(label_encoder, f)
-    print(f"  ✅ Label encoder saved to: {LABEL_ENCODER_PATH}")
+    print(f"  [OK] Label encoder saved to: {LABEL_ENCODER_PATH}")
 
 
 if __name__ == '__main__':

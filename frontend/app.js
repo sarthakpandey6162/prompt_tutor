@@ -14,6 +14,7 @@ class App {
         this.searchQuery = '';
         this.sortMode = 'newest';
         this.analysisMode = 'balanced';
+        this.analysisEngine = localStorage.getItem('pt_engine_preference') || null;
         this.tokenBudget = { limit: 6000, used: 0, remaining: 6000, resetsInMs: 0 };
         this.usagePoll = null;
         this.lastEstimate = 0;
@@ -122,6 +123,22 @@ class App {
             saveKeyBtn: document.getElementById('saveKeyBtn'),
             apiKeyInput: document.getElementById('apiKeyInput'),
             modalStatus: document.getElementById('modalStatus'),
+            apiKeyInputRow: document.getElementById('apiKeyInputRow'),
+            apiKeyDescRow: document.getElementById('apiKeyDescRow'),
+            
+            engineModal: document.getElementById('engineModal'),
+            engineModalOverlay: document.getElementById('engineModalOverlay'),
+            engineApiBtn: document.getElementById('engineApiBtn'),
+            engineMlBtn: document.getElementById('engineMlBtn'),
+            setEngineApiBtn: document.getElementById('setEngineApiBtn'),
+            setEngineMlBtn: document.getElementById('setEngineMlBtn'),
+            engineModalStatus: document.getElementById('engineModalStatus'),
+
+            // Craft page engine toggle
+            engineSwitch: document.getElementById('engineSwitch'),
+            engineOptApi: document.getElementById('engineOptApi'),
+            engineOptMl: document.getElementById('engineOptMl'),
+            engineSlider: document.getElementById('engineSlider'),
 
             apiDot: document.getElementById('apiDot'),
             keyToggle: document.getElementById('keyToggle'),
@@ -187,6 +204,14 @@ class App {
             mlTestBenchmarkScore: document.getElementById('mlTestBenchmarkScore'),
             mlTestBenchmarkCategory: document.getElementById('mlTestBenchmarkCategory'),
             mlTestDiffBadge: document.getElementById('mlTestDiffBadge'),
+            mlCompareWrap: document.getElementById('mlCompareWrap'),
+            mlBeforePrompt: document.getElementById('mlBeforePrompt'),
+            mlAfterPrompt: document.getElementById('mlAfterPrompt'),
+            mlBeforeMeta: document.getElementById('mlBeforeMeta'),
+            mlAfterMeta: document.getElementById('mlAfterMeta'),
+            mlCompareDelta: document.getElementById('mlCompareDelta'),
+            mlUseImprovedBtn: document.getElementById('mlUseImprovedBtn'),
+            mlAfterLabel: document.getElementById('mlAfterLabel'),
             // Dataset Explorer
             datasetSearch: document.getElementById('datasetSearch'),
             datasetBody: document.getElementById('datasetBody'),
@@ -201,6 +226,10 @@ class App {
     bind() {
         // Desktop nav
         this.$.sbLinks.forEach(n => n.addEventListener('click', () => this.go(n.dataset.view)));
+        // Start Course Btn
+        document.getElementById('startCourseBtn')?.addEventListener('click', () => {
+            if (this.lessons.length > 0) this.openLesson(this.lessons[0].id);
+        });
         // Settings nav
         document.getElementById('settingsNav')?.addEventListener('click', () => this.openModal());
         // Input
@@ -253,6 +282,13 @@ class App {
         this.$.varTabs.forEach(t => t.addEventListener('click', () => { this.$.varTabs.forEach(x => x.classList.remove('active')); t.classList.add('active'); this.variant = t.dataset.var; this.showVariant(); }));
         // Local ML Tester
         this.$.mlTestBtn?.addEventListener('click', () => this.submitMLTest());
+        this.$.mlUseImprovedBtn?.addEventListener('click', () => {
+            const improved = this.$.mlAfterPrompt?.textContent || '';
+            if (!improved.trim()) return;
+            this.$.mlTestInput.value = improved;
+            this.$.mlTestInput.focus();
+            this.toast('Improved prompt loaded into input', 'ok');
+        });
         // Library
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
@@ -287,6 +323,16 @@ class App {
         this.$.modalOverlay.addEventListener('click', () => this.closeModal());
         this.$.modalX.addEventListener('click', () => this.closeModal());
         this.$.saveKeyBtn.addEventListener('click', () => this.saveKey());
+
+        // Engine Modals
+        this.$.engineApiBtn?.addEventListener('click', () => this.setEngine('api', true));
+        this.$.engineMlBtn?.addEventListener('click', () => this.setEngine('ml', true));
+        this.$.setEngineApiBtn?.addEventListener('click', () => this.setEngine('api', false));
+        this.$.setEngineMlBtn?.addEventListener('click', () => this.setEngine('ml', false));
+
+        // Craft page engine toggle
+        this.$.engineOptApi?.addEventListener('click', () => this.setEngine('api', false));
+        this.$.engineOptMl?.addEventListener('click', () => this.setEngine('ml', false));
 
         this.$.libraryModalOverlay?.addEventListener('click', () => this.closeLibraryModal());
         this.$.libraryModalX?.addEventListener('click', () => this.closeLibraryModal());
@@ -342,6 +388,7 @@ class App {
         document.documentElement.setAttribute('data-theme', 'light');
 
         this.checkKey();
+        this.syncCraftEngineToggle();
         this.syncLibSortUI();
         this.loadBadge();
         this.loadDraft();
@@ -350,14 +397,13 @@ class App {
         this.buildCheatSheet();
         this.renderLessonsList();
         this.renderChallengesList();
-        this.openTour(false);
     }
 
     /* ===== PromptCraft ===== */
     async craftPrompt() {
         const idea = document.getElementById('pcIdea')?.value?.trim();
         if (!idea) return;
-        if (!this.ensureSessionApiKey()) return;
+        if (!this.ensureSessionApiKey(true)) return;
 
         const tone = document.getElementById('pcTone')?.value || '';
         const audience = document.getElementById('pcAudience')?.value || '';
@@ -445,6 +491,7 @@ class App {
         return [
             {
                 id: 'l1',
+                module: 'Module 1: The Fundamentals',
                 icon: '📘',
                 title: 'Prompt Basics',
                 summary: 'Understand what makes a good prompt and why it matters',
@@ -452,6 +499,7 @@ class App {
             },
             {
                 id: 'l2',
+                module: 'Module 1: The Fundamentals',
                 icon: '🧠',
                 title: 'Role Assignment',
                 summary: 'Learn how assigning roles to AI dramatically improves output quality',
@@ -459,6 +507,7 @@ class App {
             },
             {
                 id: 'l3',
+                module: 'Module 2: Advanced Techniques',
                 icon: '🧪',
                 title: 'Few-Shot Prompting',
                 summary: 'Provide examples to guide AI output format and style',
@@ -466,6 +515,7 @@ class App {
             },
             {
                 id: 'l4',
+                module: 'Module 2: Advanced Techniques',
                 icon: '🪜',
                 title: 'Chain of Thought',
                 summary: 'Guide AI to think step-by-step for complex tasks',
@@ -473,6 +523,7 @@ class App {
             },
             {
                 id: 'l5',
+                module: 'Module 3: Precision & Control',
                 icon: '📏',
                 title: 'Constraints & Format',
                 summary: 'Control AI output length, format and style',
@@ -507,6 +558,7 @@ class App {
 
     /* ===== Navigation ===== */
     go(view) {
+        this.currentView = view;
         let actualView = view === 'saved' ? 'library' : view;
         
         // Sync sidebar
@@ -551,7 +603,8 @@ class App {
             this.datasetRows = Array.isArray(payload.data) ? payload.data : [];
             this.datasetLoaded = true;
             if (this.$.datasetTotal) {
-                this.$.datasetTotal.textContent = String(payload.total ?? this.datasetRows.length);
+                let _base = payload.total ?? this.datasetRows.length;
+                this.$.datasetTotal.textContent = String(_base > 0 ? _base : 0);
             }
             this.renderDatasetTable(this.$.datasetSearch?.value || '');
         } catch (error) {
@@ -612,8 +665,77 @@ class App {
         }).join('');
     }
 
-    /* ===== API Key ===== */
-    openModal() { this.$.modal.classList.add('open'); }
+    /* ===== API Key & Engine ===== */
+    setEngine(mode, fromStartup = false) {
+        this.analysisEngine = mode;
+        localStorage.setItem('pt_engine_preference', mode);
+        this.syncCraftEngineToggle();
+        
+        if (fromStartup) {
+            this.$.engineModalStatus.textContent = 'Engine Selected. Loading...';
+            this.$.engineModalStatus.style.color = 'var(--ok)';
+            setTimeout(() => {
+                this.$.engineModal.classList.remove('open');
+                this.checkKey();
+            }, 100);
+        } else {
+            this.syncSettingsUI();
+            this.checkKey();
+        }
+    }
+
+    /** Sync the craft-page engine toggle pill to match current engine */
+    syncCraftEngineToggle() {
+        const sw = this.$.engineSwitch;
+        if (!sw) return;
+        const isML = this.analysisEngine === 'ml';
+        sw.setAttribute('data-active', isML ? 'ml' : 'api');
+        this.$.engineOptApi?.classList.toggle('active', !isML);
+        this.$.engineOptMl?.classList.toggle('active', isML);
+        // Show/hide sidebar links based on engine
+        const allLinks = Array.from(document.querySelectorAll('.sb-nav .sb-link'));
+        allLinks.forEach(link => {
+            const view = link.dataset.view;
+            if (view === 'mltest' || view === 'dataset') {
+                link.style.display = isML ? 'flex' : 'none';
+            } else {
+                link.style.display = isML ? 'none' : 'flex';
+            }
+        });
+        
+        // Redirect if the current view doesn't belong to the active engine
+        if (!isML && (this.currentView === 'mltest' || this.currentView === 'dataset')) {
+            this.go('craft');
+        } else if (isML && this.currentView !== 'mltest' && this.currentView !== 'dataset') {
+            this.go('mltest');
+        }
+    }
+
+    syncSettingsUI() {
+        if(!this.$.setEngineApiBtn) return;
+        this.$.setEngineApiBtn.classList.toggle('btn-primary', this.analysisEngine === 'api');
+        this.$.setEngineApiBtn.classList.toggle('btn-ghost', this.analysisEngine !== 'api');
+        this.$.setEngineMlBtn.classList.toggle('btn-primary', this.analysisEngine === 'ml');
+        this.$.setEngineMlBtn.classList.toggle('btn-ghost', this.analysisEngine !== 'ml');
+        
+        const desc = document.getElementById('activeEngineDesc');
+        if(desc) {
+            desc.textContent = this.analysisEngine === 'ml' 
+                ? 'Current: Local ML (PyTorch). Uses local service for scoring. Text generation is disabled.'
+                : 'Current: Cloud API (Groq). Uses Groq API for text generation and API scoring.';
+        }
+        
+        if (this.analysisEngine === 'ml') {
+            this.$.apiKeyInputRow.style.display = 'none';
+        } else {
+            this.$.apiKeyInputRow.style.display = 'block';
+        }
+    }
+
+    openModal() { 
+        this.syncSettingsUI();
+        this.$.modal.classList.add('open'); 
+    }
     closeModal() { this.$.modal.classList.remove('open'); }
 
     async checkKey() {
@@ -622,6 +744,8 @@ class App {
             if (!badge) return;
             badge.textContent = configured ? 'Ready ✓' : 'Not set ✗';
             badge.classList.toggle('on', configured);
+            badge.style.background = configured ? 'var(--green)' : 'var(--tx3)';
+            badge.style.boxShadow = configured ? '0 0 0 3px rgba(5,150,105,0.15)' : 'none';
             badge.style.width = 'auto';
             badge.style.height = '22px';
             badge.style.padding = '0 8px';
@@ -643,10 +767,28 @@ class App {
             this.backendHasDefaultKey = false;
         }
 
+        if (!this.analysisEngine) {
+            // Default to 'api' silently instead of showing a popup
+            this.analysisEngine = 'api';
+            localStorage.setItem('pt_engine_preference', 'api');
+            this.syncCraftEngineToggle();
+            setBadge(false);
+        }
+
+        if (this.analysisEngine === 'ml') {
+            this.cachedKeyStatus = true;
+            if (badge) {
+                badge.textContent = 'Local ML';
+                badge.classList.add('on');
+                badge.style.background = '#4f46e5';
+                badge.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.18)';
+            }
+            return;
+        }
+
         const configured = !!this.sessionApiKey || this.backendHasDefaultKey;
         this.cachedKeyStatus = configured;
         setBadge(configured);
-        if (!configured) setTimeout(() => this.openModal(), 300);
     }
 
     async saveKey() {
@@ -665,14 +807,15 @@ class App {
             this.$.modalStatus.style.color = 'var(--ok)';
             this.checkKey();
             this.toast('Session key applied', 'ok');
-            setTimeout(() => this.closeModal(), 400);
+            setTimeout(() => this.closeModal(), 100);
         } catch (e) {
             this.$.modalStatus.textContent = 'Error saving key';
             this.$.modalStatus.style.color = 'var(--red)';
         } finally { this.$.saveKeyBtn.textContent = 'Apply Session Key'; }
     }
 
-    ensureSessionApiKey() {
+    ensureSessionApiKey(forceApi = false) {
+        if (!forceApi && this.analysisEngine === 'ml') return true;
         if (this.sessionApiKey || this.backendHasDefaultKey) return true;
         this.showErr('Enter your Groq API key to continue. It is not saved and is required each login.');
         this.openModal();
@@ -778,7 +921,7 @@ class App {
             const r = await fetch(`${this.API}/analyze`, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ prompt, apiKey: this.sessionApiKey })
+                body: JSON.stringify({ prompt, apiKey: this.sessionApiKey, engine: this.analysisEngine })
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error || 'Analysis failed.');
@@ -1046,14 +1189,128 @@ class App {
     }
 
     /* ===== Local ML Tester ===== */
+    normalizeElementFlags(elements) {
+        const raw = elements && typeof elements === 'object' ? elements : {};
+        const bool = (v) => v === true || v === 1 || v === '1' || v === 'true';
+        return {
+            has_role: bool(raw.has_role),
+            has_context: bool(raw.has_context),
+            has_constraints: bool(raw.has_constraints),
+            has_format: bool(raw.has_format),
+            has_examples: bool(raw.has_examples)
+        };
+    }
+
+    formatMLMeta(prediction, elements) {
+        const scoreText = prediction?.score != null ? `${prediction.score}/10` : '--/10';
+        const categoryText = prediction?.category || '--';
+        const flags = this.normalizeElementFlags(elements || prediction?.elements);
+        const elementCount = Object.values(flags).filter(Boolean).length;
+        return `${scoreText} | ${categoryText} | ${elementCount}/5 elements`;
+    }
+
+    buildRuleBasedPromptUpgrade(prompt, elements) {
+        const clean = String(prompt || '').trim();
+        if (!clean) return '';
+
+        const flags = this.normalizeElementFlags(elements);
+        const words = clean.split(/\s+/).filter(Boolean);
+        const isShort = words.length <= 6;
+        const lower = clean.toLowerCase();
+        const intent = /code|bug|fix|debug|function|api|sql|python|javascript|java/.test(lower)
+            ? 'coding'
+            : /write|draft|email|caption|post|story|poem|script/.test(lower)
+                ? 'writing'
+                : /\?|what|why|how|explain|difference/.test(lower)
+                    ? 'explain'
+                    : 'general';
+        const lines = [];
+
+        if (!flags.has_role) {
+            if (intent === 'coding') lines.push('Role: You are a senior software engineer focused on practical fixes.');
+            else if (intent === 'writing') lines.push('Role: You are a clear and creative writing assistant.');
+            else if (intent === 'explain') lines.push('Role: You are a patient teacher who explains clearly.');
+            else lines.push('Role: You are an expert assistant in this domain.');
+        }
+
+        if (!flags.has_context && !isShort) {
+            lines.push('Context: Use only the information provided and keep assumptions explicit.');
+        }
+
+        if (!flags.has_constraints) {
+            lines.push(isShort
+                ? 'Constraints: Keep the answer concise and directly useful.'
+                : 'Constraints: Be concise, accurate, and avoid unsupported claims.');
+        }
+
+        if (!flags.has_format) {
+            lines.push(isShort
+                ? 'Output format: Return 3 short bullet points.'
+                : 'Output format: Return a clear, step-by-step answer with short headings.');
+        }
+
+        if (!flags.has_examples && !isShort) {
+            lines.push('Example style: Include one short example when useful.');
+        }
+
+        if (!lines.length) return clean;
+
+        lines.push(`Task: ${clean}`);
+        return lines.join('\n');
+    }
+
+    async fetchLocalTestPrediction(promptText) {
+        const r = await fetch(`${this.API}/ml/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText })
+        });
+        const d = await r.json();
+        if (!d.success || !d.prediction) throw new Error(d.error || 'Failed to score comparison prompt');
+        return d.prediction;
+    }
+
+    renderMLComparison(beforePrompt, beforePrediction, afterPrompt, afterPrediction) {
+        if (!this.$.mlCompareWrap) return;
+
+        this.$.mlBeforePrompt.textContent = beforePrompt || '--';
+        this.$.mlAfterPrompt.textContent = afterPrompt || '--';
+        this.$.mlBeforeMeta.textContent = this.formatMLMeta(beforePrediction, beforePrediction?.elements);
+        this.$.mlAfterMeta.textContent = this.formatMLMeta(afterPrediction, afterPrediction?.elements);
+
+        const beforeScore = Number(beforePrediction?.score);
+        const afterScore = Number(afterPrediction?.score);
+        if (!Number.isNaN(beforeScore) && !Number.isNaN(afterScore)) {
+            const delta = (afterScore - beforeScore).toFixed(1);
+            const sign = delta > 0 ? '+' : '';
+            if (delta > 0) {
+                this.$.mlCompareDelta.textContent = `${sign}${delta} score improvement`;
+                this.$.mlCompareDelta.style.background = 'var(--green)';
+            } else if (delta < 0) {
+                this.$.mlCompareDelta.textContent = `${sign}${delta} score change`;
+                this.$.mlCompareDelta.style.background = 'var(--amber)';
+            } else {
+                this.$.mlCompareDelta.textContent = 'No score change';
+                this.$.mlCompareDelta.style.background = 'var(--tx3)';
+            }
+        } else {
+            this.$.mlCompareDelta.textContent = 'Comparison unavailable';
+            this.$.mlCompareDelta.style.background = 'var(--tx3)';
+        }
+
+        this.$.mlCompareWrap.style.display = 'block';
+    }
+
     async submitMLTest() {
         const text = this.$.mlTestInput.value.trim();
         if (!text) return;
         
+        const btnIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
         this.$.mlTestBtn.disabled = true;
-        this.$.mlTestBtn.textContent = 'Analyzing...';
+        this.$.mlTestBtn.innerHTML = '<span class="spinner"></span> Analyzing...';
         this.$.mlTestError.style.display = 'none';
         this.$.mlTestResults.style.display = 'none';
+        if (this.$.mlCompareWrap) this.$.mlCompareWrap.style.display = 'none';
         
         try {
             const r = await fetch(`${this.API}/ml/test`, {
@@ -1126,14 +1383,35 @@ class App {
             } else {
                 this.$.apiBenchmarkWrap.style.display = 'none';
             }
+
+            if (this.$.mlAfterLabel) {
+                this.$.mlAfterLabel.textContent = 'After (Rule-Based Upgrade)';
+            }
+
+            const upgradedPrompt = this.buildRuleBasedPromptUpgrade(text, p.elements);
+            let upgradedPrediction = null;
+            if (upgradedPrompt && upgradedPrompt !== text) {
+                try {
+                    upgradedPrediction = await this.fetchLocalTestPrediction(upgradedPrompt);
+                } catch (comparisonError) {
+                    console.warn('[ML Compare] Failed to score upgraded prompt:', comparisonError.message);
+                }
+            }
+
+            if (upgradedPrediction) {
+                this.renderMLComparison(text, p, upgradedPrompt, upgradedPrediction);
+            }
             
             this.$.mlTestResults.style.display = 'block';
+            this.$.mlTestResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (e) {
-            this.$.mlTestError.textContent = e.message;
+            console.error('[ML Test Error]', e);
+            this.$.mlTestError.textContent = e.message || 'Failed to connect to ML service. Is the Python backend running?';
             this.$.mlTestError.style.display = 'block';
+            this.$.mlTestError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } finally {
             this.$.mlTestBtn.disabled = false;
-            this.$.mlTestBtn.textContent = 'Analyze with Local AI';
+            this.$.mlTestBtn.innerHTML = `${btnIcon} Analyze with Local AI`;
         }
     }
 
@@ -1454,15 +1732,14 @@ class App {
         });
         const data = scoreHistory.map(d => Number(d.score) || 0);
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const accent = this.css('--accent');
 
-        const grad = ctx.createLinearGradient(0, 0, 0, 260);
-        grad.addColorStop(0, isDark ? 'rgba(34, 211, 238, 0.34)' : 'rgba(14, 165, 164, 0.28)');
-        grad.addColorStop(1, isDark ? 'rgba(34, 211, 238, 0.03)' : 'rgba(14, 165, 164, 0.02)');
+        const grad = ctx.createLinearGradient(0, 0, 0, 300);
+        grad.addColorStop(0, isDark ? 'rgba(139, 92, 246, 0.4)' : 'rgba(139, 92, 246, 0.2)');
+        grad.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
 
         const lineGrad = ctx.createLinearGradient(0, 0, ctx.canvas.width || 600, 0);
-        lineGrad.addColorStop(0, isDark ? '#22d3ee' : '#0ea5a4');
-        lineGrad.addColorStop(1, isDark ? '#34d399' : '#0f766e');
+        lineGrad.addColorStop(0, '#8b5cf6');
+        lineGrad.addColorStop(1, '#3b82f6');
 
         this.charts.line = new Chart(ctx, {
             type: 'line',
@@ -1474,44 +1751,48 @@ class App {
                     borderColor: lineGrad,
                     backgroundColor: grad,
                     fill: true,
-                    tension: 0.42,
+                    tension: 0.45,
                     cubicInterpolationMode: 'monotone',
-                    borderWidth: 3,
-                    pointRadius: 3,
+                    borderWidth: 4,
+                    pointRadius: 4,
                     pointHoverRadius: 6,
                     pointHoverBorderWidth: 3,
-                    pointBackgroundColor: this.css('--card-solid'),
-                    pointBorderColor: accent,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#8b5cf6',
                     pointBorderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { duration: 700, easing: 'easeOutQuart' },
+                animation: { duration: 1000, easing: 'easeOutQuart' },
+                layout: { padding: { top: 10, right: 10, bottom: 0, left: 0 } },
                 scales: {
                     y: {
                         min: 0,
                         max: 10,
-                        ticks: { color: this.css('--tx3'), stepSize: 2, padding: 8 },
-                        grid: { color: this.css('--border-lt'), drawBorder: false, borderDash: [5, 5] }
+                        ticks: { color: this.css('--tx3'), stepSize: 2, padding: 12, font: { weight: '600' } },
+                        grid: { color: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', drawBorder: false }
                     },
                     x: {
-                        ticks: { color: this.css('--tx3'), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
-                        grid: { display: false }
+                        ticks: { color: this.css('--tx3'), maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { weight: '600' }, padding: 8 },
+                        grid: { display: false, drawBorder: false }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: this.css('--card-solid'),
-                        titleColor: this.css('--tx'),
-                        bodyColor: this.css('--tx2'),
-                        borderColor: this.css('--border'),
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        titleColor: isDark ? '#f8fafc' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#475569',
+                        borderColor: isDark ? '#334155' : '#e2e8f0',
                         borderWidth: 1,
-                        cornerRadius: 10,
-                        padding: 10,
+                        cornerRadius: 12,
+                        padding: 12,
                         displayColors: false,
+                        titleFont: { size: 13, weight: '700' },
+                        bodyFont: { size: 14, weight: '600' },
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                         callbacks: {
                             label: (ctx2) => `Score: ${ctx2.parsed.y}/10`
                         }
@@ -1543,49 +1824,50 @@ class App {
                 datasets: [{
                     label: 'Element Coverage',
                     data: values,
-                    borderColor: isDark ? '#22d3ee' : '#0ea5a4',
-                    backgroundColor: isDark ? 'rgba(34, 211, 238, 0.20)' : 'rgba(14, 165, 164, 0.18)',
-                    pointBackgroundColor: isDark ? '#5eead4' : '#0f766e',
-                    pointBorderColor: this.css('--card-solid'),
-                    pointHoverBackgroundColor: this.css('--card-solid'),
-                    pointHoverBorderColor: isDark ? '#22d3ee' : '#0ea5a4',
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    borderWidth: 2.5,
+                    borderColor: '#06b6d4', // Cyan
+                    backgroundColor: isDark ? 'rgba(6, 182, 212, 0.25)' : 'rgba(6, 182, 212, 0.15)',
+                    pointBackgroundColor: '#22d3ee',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#22d3ee',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 3,
                     fill: true
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { duration: 800, easing: 'easeOutQuart' },
+                animation: { duration: 1000, easing: 'easeOutQuart' },
                 scales: {
                     r: {
                         min: 0,
                         max: 100,
                         ticks: {
                             stepSize: 20,
-                            display: false,
-                            backdropColor: 'transparent'
+                            display: false
                         },
-                        angleLines: { color: this.css('--border-lt') },
-                        grid: { color: this.css('--border-lt'), circular: false },
+                        angleLines: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+                        grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', circular: true },
                         pointLabels: {
                             color: this.css('--tx2'),
-                            font: { size: 12, weight: '600' }
+                            font: { size: 13, weight: '700' },
+                            padding: 16
                         }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: this.css('--card-solid'),
-                        titleColor: this.css('--tx'),
-                        bodyColor: this.css('--tx2'),
-                        borderColor: this.css('--border'),
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        titleColor: isDark ? '#f8fafc' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#475569',
+                        borderColor: isDark ? '#334155' : '#e2e8f0',
                         borderWidth: 1,
-                        cornerRadius: 10,
-                        padding: 10,
+                        cornerRadius: 12,
+                        padding: 12,
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                         callbacks: {
                             label: (ctx2) => `${ctx2.label}: ${ctx2.raw}%`
                         }
@@ -1593,24 +1875,6 @@ class App {
                 }
             }
         });
-
-        const weakest = Object.entries(usage).sort((a, b) => a[1] - b[1])[0]?.[0] || 'examples';
-        const weakestLabel = weakest.charAt(0).toUpperCase() + weakest.slice(1);
-
-        let ctaEl = document.getElementById('radarCta');
-        if (!ctaEl) {
-            ctaEl = document.createElement('div');
-            ctaEl.id = 'radarCta';
-            ctaEl.style.textAlign = 'center';
-            ctaEl.style.marginTop = '12px';
-            this.$.elementRadar.parentNode.appendChild(ctaEl);
-        }
-        ctaEl.innerHTML = `
-            <p style="font-size:13px; color:#6b7280; margin:8px 0 4px;">Your weakest element is <b>${weakestLabel}</b></p>
-            <button onclick="app.practiceElement('${weakest}')" style="font-size:12px; padding:5px 12px; border:1px solid #d1d5db; border-radius:6px; cursor:pointer; background:#f9fafb; color:#374151; font-weight:600;">
-                Practice ${weakestLabel} →
-            </button>
-        `;
     }
 
     renderDistributionChart({ weak, mid, high, total }) {
@@ -1744,45 +2008,40 @@ class App {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { duration: 880, easing: 'easeOutQuart' },
+                animation: { duration: 1000, easing: 'easeOutQuart' },
                 datasets: {
                     bar: {
                         barPercentage: 0.62,
                         categoryPercentage: 0.58
                     }
                 },
-                animations: {
-                    y: {
-                        duration: 900,
-                        easing: 'easeOutQuart',
-                        delay: (ctx2) => (ctx2.type === 'data' ? ctx2.dataIndex * 160 : 0)
-                    }
-                },
+                layout: { padding: { top: 30 } },
                 scales: {
                     y: {
                         beginAtZero: true,
                         suggestedMax: Math.max(3, maxVal + 2),
-                        ticks: { color: this.css('--tx3'), precision: 0, padding: 8 },
-                        grid: { color: this.css('--border-lt'), drawBorder: false, borderDash: [4, 4] }
+                        ticks: { color: this.css('--tx3'), precision: 0, padding: 12, font: { weight: '600' } },
+                        grid: { color: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', drawBorder: false }
                     },
                     x: {
-                        ticks: { color: this.css('--tx2'), font: { weight: '700' } },
-                        grid: { display: false }
+                        ticks: { color: this.css('--tx2'), font: { weight: '700' }, padding: 8 },
+                        grid: { display: false, drawBorder: false }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: this.css('--card-solid'),
-                        titleColor: this.css('--tx'),
-                        bodyColor: this.css('--tx2'),
-                        borderColor: this.css('--border'),
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        titleColor: isDark ? '#f8fafc' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#475569',
+                        borderColor: isDark ? '#334155' : '#e2e8f0',
                         borderWidth: 1,
                         cornerRadius: 12,
                         padding: 12,
-                        displayColors: false,
+                        titleFont: { size: 13, weight: '700' },
+                        bodyFont: { size: 14, weight: '600' },
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                         callbacks: {
-                            title: (items) => items?.[0]?.label || 'Distribution',
                             label: (ctx2) => `${ctx2.raw} prompts (${pct(ctx2.raw)}%)`
                         }
                     }
@@ -1790,6 +2049,7 @@ class App {
             }
         });
     }
+
 
     practiceElement(element) {
         let template = '';
@@ -1938,62 +2198,111 @@ class App {
     }
 
     renderLessonsList() {
-        if (!this.$.lessonList) return;
-        this.showLessonsList();
-        this.$.lessonList.innerHTML = this.lessons.map((l, idx) => {
-            const done = !!this.lessonState[l.id];
-            return `<button class="lesson-card ${done ? 'done' : ''}" data-id="${l.id}">
-                <span class="lesson-icon">${l.icon}</span>
-                <span class="lesson-meta"><strong>${this.esc(l.title)}</strong><span>${this.esc(l.summary)}</span></span>
-                <span class="lesson-tail">${done ? '✓' : '>'}</span>
-            </button>`;
-        }).join('');
-        this.$.lessonList.querySelectorAll('.lesson-card').forEach(btn => {
-            btn.addEventListener('click', () => this.openLesson(btn.dataset.id));
+        const syllabus = document.getElementById('lessonSyllabus');
+        if (!syllabus) return;
+        
+        let html = '';
+        const modules = {};
+        
+        this.lessons.forEach(l => {
+            if (!modules[l.module]) modules[l.module] = [];
+            modules[l.module].push(l);
         });
-        if (this.$.lessonProgress) {
-            const doneCount = Object.values(this.lessonState).filter(Boolean).length;
-            this.$.lessonProgress.textContent = `${doneCount}/${this.lessons.length} completed`;
+        
+        for (const [modName, modLessons] of Object.entries(modules)) {
+            html += `<div class="syllabus-module">
+                        <h4 class="syllabus-module-title">${this.esc(modName)}</h4>
+                        <div class="syllabus-module-links">`;
+            
+            html += modLessons.map(l => {
+                const done = !!this.lessonState[l.id];
+                const active = this.activeLessonId === l.id;
+                return `<button class="syllabus-link ${done ? 'done' : ''} ${active ? 'active' : ''}" data-id="${l.id}">
+                    <span class="syl-icon">${done ? '✓' : l.icon}</span>
+                    <span class="syl-text">${this.esc(l.title)}</span>
+                </button>`;
+            }).join('');
+            
+            html += `</div></div>`;
         }
-
-        const allDone = this.lessons.every(l => !!this.lessonState[l.id]);
-        if (allDone) {
-            let banner = document.getElementById('lessonsBanner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'lessonsBanner';
-                this.$.lessonList.parentNode.insertBefore(banner, this.$.lessonList);
-            }
-            banner.innerHTML = `
-                <div style="background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
-                    <span style="color:#065f46; font-weight:500;">🎉 All lessons complete! Ready for the real test?</span>
-                    <button onclick="app.go('challenges')" style="background:#059669; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600;">Try Challenges →</button>
-                </div>
-            `;
-            localStorage.setItem('pt_lessonsCompleted', 'true');
-        } else {
-            const banner = document.getElementById('lessonsBanner');
-            if (banner) banner.remove();
+        
+        syllabus.innerHTML = html;
+        syllabus.querySelectorAll('.syllabus-link').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.openLesson(btn.dataset.id);
+                // Also remove active class from all and add to clicked
+                syllabus.querySelectorAll('.syllabus-link').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // Update progress bar
+        const pb = document.getElementById('lessonProgressBar');
+        const pt = document.getElementById('lessonProgressText');
+        if (pb && pt) {
+            const doneCount = Object.values(this.lessonState).filter(Boolean).length;
+            pt.textContent = `${doneCount}/${this.lessons.length} completed`;
+            pb.style.width = `${(doneCount / this.lessons.length) * 100}%`;
         }
     }
 
     showLessonsList() {
-        if (this.$.lessonList) this.$.lessonList.style.display = 'grid';
-        if (this.$.lessonDetail) this.$.lessonDetail.style.display = 'none';
+        // No longer toggles a list view. Instead, the notebook layout is always visible.
     }
 
     openLesson(id) {
         const lesson = this.lessons.find(l => l.id === id);
-        if (!lesson || !this.$.lessonDetail) return;
+        if (!lesson) return;
+        
         this.activeLessonId = lesson.id;
-        this.$.lessonTitle.textContent = lesson.title;
-        this.$.lessonDesc.textContent = lesson.summary;
-        this.$.lessonContent.innerHTML = lesson.content;
-        this.$.lessonList.style.display = 'none';
-        this.$.lessonDetail.style.display = 'block';
+        this.renderLessonsList(); // Re-render syllabus to highlight active link
+        
+        const empty = document.getElementById('notebookEmpty');
+        const page = document.getElementById('notebookPage');
+        if (empty && page) {
+            empty.style.display = 'none';
+            page.style.display = 'flex';
+        }
+        
+        const titleEl = document.getElementById('notebookTitle');
+        const descEl = document.getElementById('notebookDesc');
+        const contentEl = document.getElementById('lessonContent');
+        const moduleEl = document.getElementById('notebookModule');
+        const completeBtn = document.getElementById('lessonCompleteBtn');
+        const nextBtn = document.getElementById('nextLessonBtn');
+        
+        if (titleEl) titleEl.textContent = lesson.title;
+        if (descEl) descEl.textContent = lesson.summary;
+        if (contentEl) contentEl.innerHTML = lesson.content;
+        if (moduleEl) moduleEl.textContent = lesson.module || 'Course';
+        
         const done = !!this.lessonState[lesson.id];
-        this.$.lessonCompleteBtn.textContent = done ? 'Completed ✓' : 'Mark Complete ✓';
-        this.$.lessonCompleteBtn.disabled = done;
+        if (completeBtn) {
+            completeBtn.classList.toggle('done', done);
+            completeBtn.innerHTML = done ? `<span class="check-circle"></span> Completed` : `<span class="check-circle"></span> Mark as Complete`;
+        }
+        
+        // Next lesson logic
+        const currentIndex = this.lessons.findIndex(l => l.id === id);
+        if (nextBtn) {
+            if (currentIndex < this.lessons.length - 1) {
+                nextBtn.style.display = 'inline-flex';
+                nextBtn.onclick = () => {
+                    const nextId = this.lessons[currentIndex + 1].id;
+                    this.openLesson(nextId);
+                    this.renderLessonsList(); // re-render to update active state
+                };
+            } else {
+                nextBtn.style.display = 'none';
+            }
+        }
+        
+        if (completeBtn) {
+            // Remove old listeners by cloning
+            const newBtn = completeBtn.cloneNode(true);
+            completeBtn.parentNode.replaceChild(newBtn, completeBtn);
+            newBtn.addEventListener('click', () => this.markLessonComplete());
+        }
     }
 
     markLessonComplete() {
@@ -2002,7 +2311,14 @@ class App {
         this.saveProgressState('pt_lessons_completed', this.lessonState);
         this.renderLessonsList();
         this.openLesson(this.activeLessonId);
-        this.toast('Lesson marked complete', 'ok');
+        
+        // Find next lesson
+        const currentIndex = this.lessons.findIndex(l => l.id === this.activeLessonId);
+        if (currentIndex < this.lessons.length - 1) {
+            this.toast('Lesson completed! Move on to the next one.', 'ok');
+        } else {
+            this.toast('🎉 You have completed all lessons!', 'success');
+        }
     }
 
     renderChallengesList(showList = true) {
