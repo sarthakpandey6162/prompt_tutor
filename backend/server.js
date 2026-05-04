@@ -22,6 +22,15 @@ const {
     getChatHistory,
     addChatMessage,
     clearChatHistory
+    ,
+    // Conversations
+    getConversations,
+    createConversation,
+    getConversationById,
+    addMessageToConversation,
+    deleteConversation,
+    clearConversationMessages,
+    updateConversationTitle
 } = require('./database');
 
 const app = express();
@@ -65,6 +74,12 @@ function consumeTokens(tokens) {
     const safe = Math.max(0, Math.round(Number(tokens) || 0));
     usageWindow.push({ ts: Date.now(), tokens: safe });
     pruneUsageWindow();
+}
+
+function normalizePrompt(text) {
+    return String(text || '')
+        .trim()
+        .replace(/\s+/g, ' ');
 }
 
 function getApiKeyFromRequest(req) {
@@ -230,10 +245,23 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     const cleanPrompt = prompt.trim();
+    const promptKey = normalizePrompt(cleanPrompt);
     const selectedMode = MODE_PROFILES[mode] ? mode : 'balanced';
     const profile = MODE_PROFILES[selectedMode];
 
-    // Cached analysis feature removed as requested. Every request will be analyzed live.
+    const existing = findAnalysisByPrompt(promptKey, engine === 'ml' ? 'ml' : 'api');
+    if (existing) {
+        return res.json({
+            success: true,
+            id: existing.id,
+            analysis: existing,
+            cached: true,
+            mode: selectedMode,
+            model: existing.engine === 'ml' ? 'Local-PyTorch-ML' : (model || DEFAULT_GROQ_MODEL),
+            tokenUsage: 0,
+            budget: getBudgetSnapshot()
+        });
+    }
 
     // --- ML ONLY MODE ---
     if (engine === 'ml') {
@@ -330,7 +358,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
             { role: "system", content: systemPrompt },
             { role: "user", content: `Analyze this prompt:\n"""${prompt.trim()}"""` }
         ],
-        temperature: profile.temperature,
+            temperature: 0,
         response_format: { type: "json_object" },
         max_tokens: profile.maxTokens
     };
@@ -745,13 +773,113 @@ app.post('/api/chat/stream', async (req, res) => {
     if (!messages || !messages.length) return res.status(400).json({ error: 'No messages provided' });
 
     const lastMsg = messages[messages.length - 1];
+    const convId = req.body?.conversationId || null;
+    const userMessageText = String(lastMsg?.content || '').trim();
+    
     if (lastMsg && lastMsg.role === 'user') {
-        addChatMessage('user', lastMsg.content);
+        if (convId) {
+            addMessageToConversation(convId, 'user', userMessageText);
+        } else {
+            addChatMessage('user', userMessageText);
+        }
     }
 
     if (!getApiKeyFromRequest(req)) {
         return res.status(400).json({ error: 'API key is required for every request. Please enter your Groq API key.' });
     }
+
+    // ─── CHECK PROMPT QUALITY WITH ML ───────────────────────────────
+    // Analyze the user's message to see if it's a low-quality prompt
+    let mlAnalysis = null;
+    try {
+        mlAnalysis = await fetchMLPrediction(userMessageText);
+        if (mlAnalysis) {
+            console.log(`[Chat] ML Analysis: score=${mlAnalysis.score}, category=${mlAnalysis.category}`);
+        }
+    } catch (e) {
+        console.warn('[Chat] ML analysis failed, continuing anyway:', e.message);
+    }
+
+    // If the user's message is a POOR prompt (score < 6), suggest improvements
+    // instead of directly answering the question
+    if (mlAnalysis && mlAnalysis.score < 6) {
+        console.log('[Chat] Low-quality prompt detected. Suggesting improvements.');
+        
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        // Build an improvement suggestion using Groq
+        const improvementSystemPrompt = `You are Prompt Tutor Buddy. The user has given you a direct question or simple request, but instead of answering it, you should help them craft a BETTER PROMPT that will lead to higher quality responses.
+
+Analyze their input and suggest:
+1. What makes their current phrasing weak
+2. A better way to ask the same thing (with more context, constraints, or format)
+3. Example of how to structure it better
+
+    Be encouraging and helpful. Focus on teaching them to write better prompts, not on answering their question directly. Keep the response short, specific, and actionable.`;
+
+        const improvementBody = {
+            model: model || DEFAULT_GROQ_MODEL,
+            messages: [
+                { role: 'system', content: improvementSystemPrompt },
+                { role: 'user', content: `Help me improve this prompt:\n\n"${userMessageText}"\n\nHow can I structure it better to get better responses?` }
+            ],
+            stream: true,
+            temperature: 0.6,
+            max_tokens: 800
+        };
+
+        try {
+            const { response: fetchResponse, errorData } = await fetchGroqStreamWithKeyFallback(req, improvementBody);
+
+            if (!fetchResponse.ok) {
+                res.write(`data: ${JSON.stringify({ error: errorData?.error?.message || 'API Error' })}\n\n`);
+                res.end();
+                return;
+            }
+
+            let fullAiText = '';
+            const reader = fetchResponse.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                            let jsonStr = line.substring(6).trim();
+                            if (jsonStr === '[DONE]') continue;
+                            const parsed = JSON.parse(jsonStr);
+                            const content = parsed.choices[0]?.delta?.content || '';
+                            if (content) {
+                                fullAiText += content;
+                                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            if (convId) {
+                addMessageToConversation(convId, 'assistant', fullAiText);
+            } else {
+                addChatMessage('assistant', fullAiText);
+            }
+            res.write('data: [DONE]\n\n');
+            res.end();
+
+        } catch (err) {
+            console.error('Stream error (improvement):', err);
+            res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+            res.end();
+        }
+        return; // Exit early, don't proceed to normal answer
+    }
+    // ─── END PROMPT QUALITY CHECK ───────────────────────────────────
 
     const selectedModel = model || DEFAULT_GROQ_MODEL;
 
@@ -786,7 +914,7 @@ app.post('/api/chat/stream', async (req, res) => {
             model: selectedModel,
             messages: outboundMessages,
             stream: true,
-            temperature: 0.7,
+            temperature: 0.35,
             max_tokens: 1500
         };
 
@@ -822,7 +950,11 @@ app.post('/api/chat/stream', async (req, res) => {
             }
         }
 
-        addChatMessage('assistant', fullAiText);
+        if (convId) {
+            addMessageToConversation(convId, 'assistant', fullAiText);
+        } else {
+            addChatMessage('assistant', fullAiText);
+        }
         res.write('data: [DONE]\n\n');
         res.end();
 
@@ -831,6 +963,64 @@ app.post('/api/chat/stream', async (req, res) => {
         res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
         res.end();
     }
+});
+
+// --- Conversations (new multi-chat) ---
+app.get('/api/conversations', (req, res) => {
+    try {
+        const convs = getConversations();
+        res.json(convs);
+    } catch (e) {
+        res.status(500).json({ error: e.message || 'Failed to list conversations' });
+    }
+});
+
+app.post('/api/conversations', (req, res) => {
+    try {
+        const title = String(req.body?.title || 'New chat');
+        const conv = createConversation(title);
+        res.json({ success: true, conversation: conv });
+    } catch (e) {
+        res.status(500).json({ error: e.message || 'Failed to create conversation' });
+    }
+});
+
+app.get('/api/conversations/:id', (req, res) => {
+    const id = req.params.id;
+    const conv = getConversationById(id);
+    if (!conv) return res.status(404).json({ error: 'Not found' });
+    res.json(conv.messages || []);
+});
+
+app.patch('/api/conversations/:id', (req, res) => {
+    const id = req.params.id;
+    const { title } = req.body || {};
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const conv = updateConversationTitle(id, title);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    res.json({ success: true, conversation: conv });
+});
+
+app.delete('/api/conversations/:id', (req, res) => {
+    const id = req.params.id;
+    deleteConversation(id);
+    res.json({ success: true });
+});
+
+app.post('/api/conversations/:id/messages', (req, res) => {
+    const id = req.params.id;
+    const { role, content } = req.body || {};
+    if (!role || !content) return res.status(400).json({ error: 'role and content are required' });
+    const conv = addMessageToConversation(id, role, content);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    res.json({ success: true, conversation: conv });
+});
+
+app.delete('/api/conversations/:id/messages', (req, res) => {
+    const id = req.params.id;
+    const conv = clearConversationMessages(id);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    res.json({ success: true, conversation: conv });
 });
 
 app.get('/api/health', (req, res) => {

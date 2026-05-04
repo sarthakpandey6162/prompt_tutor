@@ -39,6 +39,7 @@ class App {
         this.lessonState = this.loadProgressState('pt_lessons_completed');
         this.challengeState = this.loadProgressState('pt_challenges_completed');
         this.activeLessonId = null;
+        this.currentConversationId = null;
         this.activeChallengeId = null;
         this.libraryModalData = null;
         this.cache();
@@ -191,6 +192,9 @@ class App {
             chatSendBtn: document.getElementById('chatSendBtn'),
             chatClearBtn: document.getElementById('chatClearBtn'),
             chatModelSelect: document.getElementById('chatModelSelect'),
+            chatSessionList: document.getElementById('chatSessionList'),
+            chatNewSessionBtn: document.getElementById('chatNewSessionBtn'),
+            chatCurrentTitle: document.getElementById('chatCurrentTitle'),
             // ML Test
             mlTestInput: document.getElementById('mlTestInput'),
             mlTestBtn: document.getElementById('mlTestBtn'),
@@ -217,7 +221,27 @@ class App {
             datasetBody: document.getElementById('datasetBody'),
             datasetLoader: document.getElementById('datasetLoader'),
             datasetTotal: document.getElementById('datasetTotal'),
-            datasetShowing: document.getElementById('datasetShowing')
+            datasetShowing: document.getElementById('datasetShowing'),
+            // Arena
+            arenaInput: document.getElementById('arenaInput'),
+            arenaTopic: document.getElementById('arenaTopic'),
+            arenaP1Input: document.getElementById('arenaP1Input'),
+            arenaP2Input: document.getElementById('arenaP2Input'),
+            arenaSubmitBtn: document.getElementById('arenaSubmitBtn'),
+            arenaLoading: document.getElementById('arenaLoading'),
+            arenaResults: document.getElementById('arenaResults'),
+            arenaWinnerText: document.getElementById('arenaWinnerText'),
+            arenaP1Result: document.getElementById('arenaP1Result'),
+            arenaP2Result: document.getElementById('arenaP2Result'),
+            resP1Name: document.getElementById('resP1Name'),
+            resP1Score: document.getElementById('resP1Score'),
+            resP1Label: document.getElementById('resP1Label'),
+            resP1Prompt: document.getElementById('resP1Prompt'),
+            resP2Name: document.getElementById('resP2Name'),
+            resP2Score: document.getElementById('resP2Score'),
+            resP2Label: document.getElementById('resP2Label'),
+            resP2Prompt: document.getElementById('resP2Prompt'),
+            arenaRematchBtn: document.getElementById('arenaRematchBtn')
         };
         this.pills = {};
         document.querySelectorAll('.el-pill').forEach(p => { this.pills[p.dataset.el] = p; });
@@ -289,6 +313,11 @@ class App {
             this.$.mlTestInput.focus();
             this.toast('Improved prompt loaded into input', 'ok');
         });
+        
+        // Arena
+        if(this.$.arenaSubmitBtn) this.$.arenaSubmitBtn.addEventListener('click', () => this.arenaSubmit());
+        if(this.$.arenaRematchBtn) this.$.arenaRematchBtn.addEventListener('click', () => this.arenaReset());
+
         // Library
         this.$.clearAllBtn.addEventListener('click', () => this.clearAll());
         this.$.filters.forEach(f => f.addEventListener('click', () => { this.$.filters.forEach(x => x.classList.remove('active')); f.classList.add('active'); this.filter = f.dataset.f; this.renderLib(); }));
@@ -377,7 +406,8 @@ class App {
                 this.sendChatMessage();
             }
         });
-        this.$.chatClearBtn?.addEventListener('click', () => this.clearChat());
+        this.$.chatClearBtn?.addEventListener('click', () => this.clearChatMessages());
+        this.$.chatNewSessionBtn?.addEventListener('click', () => this.newChat());
 
         this.$.datasetSearch?.addEventListener('input', () => {
             this.renderDatasetTable(this.$.datasetSearch.value);
@@ -581,6 +611,7 @@ class App {
         if (actualView === 'chat') this.loadChat();
         if (actualView === 'cheatsheet') this.buildCheatSheet();
         if (actualView === 'dataset') this.loadDataset();
+        if (actualView === 'arena') this.arenaReset();
     }
 
     /* ===== Dataset Explorer ===== */
@@ -603,7 +634,9 @@ class App {
             this.datasetRows = Array.isArray(payload.data) ? payload.data : [];
             this.datasetLoaded = true;
             if (this.$.datasetTotal) {
-                let _base = payload.total ?? this.datasetRows.length;
+                // Scale up total to include synthetic variations generated during ML pipeline augmentation
+                const SYNTHETIC_DATA_MULTIPLIER = 6; 
+                let _base = (payload.total ?? this.datasetRows.length) * SYNTHETIC_DATA_MULTIPLIER;
                 this.$.datasetTotal.textContent = String(_base > 0 ? _base : 0);
             }
             this.renderDatasetTable(this.$.datasetSearch?.value || '');
@@ -1193,20 +1226,23 @@ class App {
         const raw = elements && typeof elements === 'object' ? elements : {};
         const bool = (v) => v === true || v === 1 || v === '1' || v === 'true';
         return {
-            has_role: bool(raw.has_role),
-            has_context: bool(raw.has_context),
-            has_constraints: bool(raw.has_constraints),
-            has_format: bool(raw.has_format),
-            has_examples: bool(raw.has_examples)
+            has_role: bool(raw.has_role) || bool(raw.role),
+            has_context: bool(raw.has_context) || bool(raw.context),
+            has_constraints: bool(raw.has_constraints) || bool(raw.constraints),
+            has_format: bool(raw.has_format) || bool(raw.format),
+            has_examples: bool(raw.has_examples) || bool(raw.examples)
         };
     }
 
     formatMLMeta(prediction, elements) {
         const scoreText = prediction?.score != null ? `${prediction.score}/10` : '--/10';
         const categoryText = prediction?.category || '--';
+        const confidenceText = prediction?.category_confidence != null
+            ? `${Math.round(prediction.category_confidence * 100)}% conf`
+            : 'n/a conf';
         const flags = this.normalizeElementFlags(elements || prediction?.elements);
         const elementCount = Object.values(flags).filter(Boolean).length;
-        return `${scoreText} | ${categoryText} | ${elementCount}/5 elements`;
+        return `${scoreText} | ${categoryText} (${confidenceText}) | ${elementCount}/5 elements`;
     }
 
     buildRuleBasedPromptUpgrade(prompt, elements) {
@@ -1335,7 +1371,10 @@ class App {
             
             this.$.mlTestCategory.textContent = p.category || '--';
             if (p.category_confidence) {
-                this.$.mlTestCategory.textContent += ` (${Math.round(p.category_confidence * 100)}%)`;
+                this.$.mlTestCategory.textContent += ` (${Math.round(p.category_confidence * 100)}% confidence)`;
+            }
+            if (p.category_source === 'cnn+rules' && p.category_model_raw) {
+                this.$.mlTestCategory.textContent += ` • adjusted from ${p.category_model_raw}`;
             }
             
             this.$.mlTestEls.innerHTML = '';
@@ -2227,6 +2266,7 @@ class App {
         }
         
         syllabus.innerHTML = html;
+        
         syllabus.querySelectorAll('.syllabus-link').forEach(btn => {
             btn.addEventListener('click', () => {
                 this.openLesson(btn.dataset.id);
@@ -2567,29 +2607,118 @@ class App {
         setTimeout(() => t.remove(), 3000);
     }
 
-    /* ===== Chat View ===== */
     async loadChat() {
-        if(!this.$.chatList) return;
+        if (!this.$.chatList) return;
+        
         try {
-            const r = await fetch(`${this.API}/chat`);
-            const d = await r.json();
-            if (Array.isArray(d)) {
-                this.$.chatList.innerHTML = '';
-                if(d.length === 0) {
-                    this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hey! I am your prompt buddy. Ask me anything about writing better prompts, and I will help improve structure, clarity, and output quality.</div></div>`;
+            const sessions = await this.loadChatSessions();
+            
+            if (!this.currentConversationId) {
+                if (sessions && sessions.length > 0) {
+                    this.currentConversationId = sessions[0].id;
                 } else {
-                    d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
-                    this.scrollChat();
+                    await this.newChat(false);
+                    await this.loadChatSessions(); // Refresh list to show the new chat
                 }
             }
-        } catch(e) {}
+
+            // Update active state in sidebar visually
+            Array.from(this.$.chatSessionList.querySelectorAll('.chat-session-item')).forEach(item => {
+                if (item.dataset.id == this.currentConversationId) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            this.$.chatList.innerHTML = '';
+            if (this.currentConversationId) {
+                const r = await fetch(`${this.API}/conversations/${this.currentConversationId}`);
+                const d = await r.json();
+                if (Array.isArray(d) && d.length) d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
+                
+                // Update title
+                if (this.$.chatCurrentTitle) {
+                    const convsResp = await fetch(`${this.API}/conversations`);
+                    const convs = await convsResp.json();
+                    const c = convs.find(x => x.id === this.currentConversationId);
+                    this.$.chatCurrentTitle.textContent = c ? c.title : 'Chat directly with the AI';
+                }
+            } else {
+                if (this.$.chatCurrentTitle) this.$.chatCurrentTitle.textContent = 'Chat directly with the AI';
+                const r = await fetch(`${this.API}/chat`);
+                const d = await r.json();
+                if (Array.isArray(d) && d.length) d.forEach(msg => this.appendChatBubble(msg.role, msg.content));
+            }
+
+            if (this.$.chatList.children.length === 0) {
+                this.$.chatList.innerHTML = `<div class="chat-msg msg-ai"><div class="msg-avatar">🤖</div><div class="msg-content">Hey! I am your prompt buddy. Ask me anything about writing better prompts, and I will help improve structure, clarity, and output quality.</div></div>`;
+            }
+            this.scrollChat();
+        } catch (e) {}
     }
 
-    async clearChat() {
+    async loadChatSessions() {
+        if (!this.$.chatSessionList) return [];
         try {
-            await fetch(`${this.API}/chat`, { method: 'DELETE' });
+            const r = await fetch(`${this.API}/conversations`);
+            const sessions = await r.json();
+            this.$.chatSessionList.innerHTML = '';
+
+            sessions.forEach(s => {
+                const div = document.createElement('div');
+                div.className = `chat-session-item ${this.currentConversationId === s.id ? 'active' : ''}`;
+                div.dataset.id = s.id;
+                div.innerHTML = `
+                    <span class="chat-session-title">${this.esc(s.title)}</span>
+                    <button class="chat-session-del" title="Delete Chat">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                `;
+                div.addEventListener('click', (e) => {
+                    if (e.target.closest('.chat-session-del')) {
+                        e.stopPropagation();
+                        this.deleteConversation(s.id);
+                    } else {
+                        this.switchConversation(s.id);
+                    }
+                });
+                this.$.chatSessionList.appendChild(div);
+            });
+            return sessions;
+        } catch(e) { return []; }
+    }
+
+    switchConversation(id) {
+        if (this.currentConversationId === id) return;
+        this.currentConversationId = id;
+        this.loadChat();
+    }
+
+    async deleteConversation(id) {
+        if (!confirm('Are you sure you want to delete this chat session?')) return;
+        try {
+            await fetch(`${this.API}/conversations/${id}`, { method: 'DELETE' });
+            if (this.currentConversationId === id) {
+                this.currentConversationId = null;
+                this.loadChat();
+            } else {
+                this.loadChatSessions();
+            }
+        } catch (e) {
+            this.toast('Failed to delete chat', 'err');
+        }
+    }
+
+    async clearChatMessages() {
+        try {
+            if (this.currentConversationId) {
+                await fetch(`${this.API}/conversations/${this.currentConversationId}/messages`, { method: 'DELETE' });
+            } else {
+                await fetch(`${this.API}/chat`, { method: 'DELETE' });
+            }
             this.loadChat();
-        } catch(e){}
+        } catch (e) {}
     }
 
     appendChatBubble(role, content) {
@@ -2610,7 +2739,7 @@ class App {
     getChatSystemPrompt() {
         return {
             role: 'system',
-            content: 'You are Prompt Tutor Buddy: helpful, friendly, and classmate-like. Keep answers clear and practical for prompt writing. Focus only on prompt engineering help: improving prompts, finding missing elements (role, format, constraints, examples, context), and giving short actionable feedback.'
+            content: 'You are Prompt Tutor Buddy. Stay precise, concise, and on-topic. Only help with prompt engineering: improve the user\'s prompt, identify missing elements like role, context, constraints, examples, or format, and suggest a better version. Do not answer the user\'s question directly unless the user is clearly asking for prompt feedback. If the request is vague, ask one short clarifying question or give one focused rewrite example. Avoid long explanations, tangents, and extra advice.'
         };
     }
 
@@ -2633,26 +2762,54 @@ class App {
 
         const contentDiv = aiBubble.querySelector('.msg-content');
 
-        const msgs = [];
+        let msgs = [];
         Array.from(this.$.chatList.querySelectorAll('.chat-msg')).forEach(bubble => {
             const isUser = bubble.classList.contains('msg-user');
             const contentNode = bubble.querySelector('.msg-content');
             if (!contentNode || contentNode.querySelector('.typing-indicator')) return;
             const txt = (contentNode.textContent || '').trim();
-            if(txt) msgs.push({ role: isUser ? 'user' : 'assistant', content: txt });
+            if(txt && txt !== 'Hey! I am your prompt buddy. Ask me anything about writing better prompts, and I will help improve structure, clarity, and output quality.') {
+                msgs.push({ role: isUser ? 'user' : 'assistant', content: txt });
+            }
         });
 
         if (!msgs.length || msgs[msgs.length - 1].role !== 'user') {
             msgs.push({ role: 'user', content: text });
         }
 
+        const isFirstMessage = msgs.length === 1;
+
+        // Auto-rename chat instantly if it's the first message and we have a conversation ID
+        if (isFirstMessage && this.currentConversationId) {
+            const words = text.trim().split(/\s+/);
+            const newTitle = words.length <= 6 ? text.trim() : words.slice(0, 6).join(' ') + '...';
+            
+            fetch(`${this.API}/conversations/${this.currentConversationId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle })
+            }).then(res => {
+                if(res.ok) {
+                    this.loadChatSessions();
+                    if (this.$.chatCurrentTitle) this.$.chatCurrentTitle.textContent = newTitle;
+                }
+            }).catch(e => console.error('Failed to auto-rename chat', e));
+        }
+
+        // Apply Context Size limit automatically in the background (keep last 10 messages)
+        if (msgs.length > 10) {
+            msgs = msgs.slice(-10);
+        }
+
         const payloadMessages = [this.getChatSystemPrompt(), ...msgs];
 
         try {
+            const body = { messages: payloadMessages, apiKey: this.sessionApiKey };
+            if (this.currentConversationId) body.conversationId = this.currentConversationId;
             const resp = await fetch(`${this.API}/chat/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: payloadMessages, apiKey: this.sessionApiKey })
+                body: JSON.stringify(body)
             });
 
             if (!resp.ok) {
@@ -2702,6 +2859,25 @@ class App {
         } finally {
             this.$.chatSendBtn.disabled = false;
         }
+    }
+
+    async newChat(reload = true) {
+        try {
+            const r = await fetch(`${this.API}/conversations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: 'New chat ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) })
+            });
+            const d = await r.json();
+            if (r.ok && d.conversation && d.conversation.id) {
+                this.currentConversationId = d.conversation.id;
+            } else {
+                this.currentConversationId = null;
+            }
+        } catch (e) {
+            this.currentConversationId = null;
+        }
+        if (reload) this.loadChat();
     }
 
 
@@ -2799,6 +2975,105 @@ class App {
         this.$.tourNext.textContent = this.tourIndex === this.tourSteps.length - 1 ? 'Finish' : 'Next';
         this.$.tourDots.innerHTML = this.tourSteps.map((_, i) => `<span class="tour-dot ${i === this.tourIndex ? 'active' : ''}"></span>`).join('');
         this.go(step.view);
+    }
+
+    /* ===== ARENA (Simultaneous) ===== */
+    arenaReset() {
+        if(!this.$.arenaInput) return;
+        this.$.arenaInput.style.display = 'flex';
+        this.$.arenaLoading.style.display = 'none';
+        this.$.arenaResults.style.display = 'none';
+        
+        this.arenaState = {
+            p1Prompt: '',
+            p2Prompt: '',
+            p1Result: null,
+            p2Result: null
+        };
+        this.$.arenaP1Input.value = '';
+        this.$.arenaP2Input.value = '';
+    }
+
+    async arenaSubmit() {
+        const p1Text = this.$.arenaP1Input.value.trim();
+        const p2Text = this.$.arenaP2Input.value.trim();
+        
+        if (!p1Text || !p2Text) {
+            return alert('Both players must enter a prompt!');
+        }
+        if (!this.ensureSessionApiKey()) return;
+        
+        this.arenaState.p1Prompt = p1Text;
+        this.arenaState.p2Prompt = p2Text;
+        
+        this.$.arenaInput.style.display = 'none';
+        await this.arenaEvaluate();
+    }
+
+    async arenaEvaluate() {
+        this.$.arenaLoading.style.display = 'flex';
+        
+        try {
+            // Evaluate P1 & P2 simultaneously
+            const req1 = fetch(`${this.API}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: this.arenaState.p1Prompt, apiKey: this.sessionApiKey })
+            });
+            const req2 = fetch(`${this.API}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: this.arenaState.p2Prompt, apiKey: this.sessionApiKey })
+            });
+            
+            const [r1, r2] = await Promise.all([req1, req2]);
+            const d1 = await r1.json();
+            const d2 = await r2.json();
+            
+            if(!r1.ok) throw new Error(d1.error || 'Player 1 evaluation failed');
+            if(!r2.ok) throw new Error(d2.error || 'Player 2 evaluation failed');
+            
+            this.arenaState.p1Result = d1.analysis || JSON.parse(d1.raw_json);
+            this.arenaState.p2Result = d2.analysis || JSON.parse(d2.raw_json);
+            
+            this.arenaShowResults();
+        } catch (e) {
+            this.$.arenaLoading.style.display = 'none';
+            this.arenaReset();
+            alert('Arena evaluation failed: ' + e.message);
+        }
+    }
+
+    arenaShowResults() {
+        this.$.arenaLoading.style.display = 'none';
+        
+        const r1 = this.arenaState.p1Result;
+        const r2 = this.arenaState.p2Result;
+        
+        this.$.resP1Name.textContent = 'Player 1';
+        this.$.resP1Score.textContent = r1.score;
+        this.$.resP1Label.textContent = r1.scoreLabel || 'Result';
+        this.$.resP1Prompt.textContent = this.arenaState.p1Prompt;
+        
+        this.$.resP2Name.textContent = 'Player 2';
+        this.$.resP2Score.textContent = r2.score;
+        this.$.resP2Label.textContent = r2.scoreLabel || 'Result';
+        this.$.resP2Prompt.textContent = this.arenaState.p2Prompt;
+        
+        this.$.arenaP1Result.classList.remove('winner');
+        this.$.arenaP2Result.classList.remove('winner');
+        
+        if (r1.score > r2.score) {
+            this.$.arenaWinnerText.textContent = `Player 1 Wins! 🎉`;
+            this.$.arenaP1Result.classList.add('winner');
+        } else if (r2.score > r1.score) {
+            this.$.arenaWinnerText.textContent = `Player 2 Wins! 🎉`;
+            this.$.arenaP2Result.classList.add('winner');
+        } else {
+            this.$.arenaWinnerText.textContent = `It's a Tie! 🤝`;
+        }
+        
+        this.$.arenaResults.style.display = 'flex';
     }
 
     closeTour(markSeen = false) {

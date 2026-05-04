@@ -1,1 +1,66 @@
-[]
+[
+  {
+    "id": 1777528524389,
+    "title": "who is the vice chancellor of...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "who is the vice chancellor of LPU",
+        "ts": 1777528539231
+      },
+      {
+        "role": "assistant",
+        "content": "I don't see any information about LPU in the provided user prompt history JSON. However, I can suggest a possible improvement for the user's prompt to get a more accurate answer. \n\nA revised prompt could be:\n\"Act as a person who works at LPU and tell me about the current vice chancellor of the university.\" \n\nThis revised prompt sets a clear context and includes a specific role, which can lead to a more informative response.",
+        "ts": 1777528539758
+      }
+    ],
+    "created_at": "2026-04-30T05:55:24.389Z",
+    "updated_at": "2026-04-30T05:55:39.758Z"
+  },
+  {
+    "id": 1777314924220,
+    "title": "upto how many last messsages you...",
+    "messages": [
+      {
+        "role": "user",
+        "content": "upto how many last messsages you can remember",
+        "ts": 1777314939038
+      },
+      {
+        "role": "assistant",
+        "content": "I can remember the last 5 messages. If you'd like to refer to a previous conversation or a specific prompt from your history, just let me know the context or a keyword from the prompt, and I'll do my best to assist you.",
+        "ts": 1777314939351
+      },
+      {
+        "role": "user",
+        "content": "helo",
+        "ts": 1777348675282
+      },
+      {
+        "role": "assistant",
+        "content": "It seems like your previous prompt (\"hi hello\") was in your history, but I'd love to help you with something new. Would you like to improve a prompt, get feedback on a writing task, or explore a new idea?",
+        "ts": 1777348675783
+      }
+    ],
+    "created_at": "2026-04-27T18:35:24.220Z",
+    "updated_at": "2026-04-28T03:57:55.783Z"
+  },
+  {
+    "id": 1777313715835,
+    "title": "lpu lpu",
+    "messages": [
+      {
+        "role": "user",
+        "content": "lpu lpu",
+        "ts": 1777313721471
+      },
+      {
+        "role": "assistant",
+        "content": "I'm happy to help, but I'm not sure what you mean by \"lpu lpu.\" Can you explain or provide more context about what you're trying to achieve? It seems like you might have a prompt in mind, but it's unclear.\n\nIf you're trying to write a prompt, I'd be happy to help you get started or improve an existing prompt. Let's take a look at your user history to see if there's something specific we can work with.",
+        "ts": 1777313722054
+      }
+    ],
+    "created_at": "2026-04-27T18:15:15.835Z",
+    "updated_at": "2026-04-27T18:15:22.054Z"
+  }
+]

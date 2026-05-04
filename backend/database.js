@@ -9,11 +9,13 @@ const path = require('path');
 const DB_PATH = path.join(__dirname, 'prompts.json');
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
 const CHATS_PATH = path.join(__dirname, 'chats.json');
+const CONVERSATIONS_PATH = path.join(__dirname, 'conversations.json');
 
 // Initialize empty files if they don't exist
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify([]));
 if (!fs.existsSync(SETTINGS_PATH)) fs.writeFileSync(SETTINGS_PATH, JSON.stringify({}));
 if (!fs.existsSync(CHATS_PATH)) fs.writeFileSync(CHATS_PATH, JSON.stringify([]));
+if (!fs.existsSync(CONVERSATIONS_PATH)) fs.writeFileSync(CONVERSATIONS_PATH, JSON.stringify([]));
 
 function readJSON(filePath) {
     try {
@@ -53,10 +55,17 @@ function detectPromptElements(text) {
     };
 }
 
+function normalizePrompt(text) {
+    return String(text || '')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
 // ===== Prompt Operations =====
 
 function saveAnalysis(promptText, analysis, engine = 'api') {
     let prompts = readJSON(DB_PATH);
+    const promptKey = normalizePrompt(promptText);
 
     // Normalize improved: support both object {default,developer,beginner} and legacy string
     let impDefault = '', impDev = '', impBeg = '';
@@ -78,7 +87,7 @@ function saveAnalysis(promptText, analysis, engine = 'api') {
         : detectPromptElements(promptText);
 
     // Check for existing entry to overwrite instead of duplicate
-    const existingIndex = prompts.findIndex(p => p.prompt_text === promptText);
+    const existingIndex = prompts.findIndex(p => normalizePrompt(p.prompt_text) === promptKey);
     let isSaved = false;
     let entryId = Date.now();
     
@@ -91,6 +100,7 @@ function saveAnalysis(promptText, analysis, engine = 'api') {
     const newEntry = {
         id: entryId,
         prompt_text: promptText,
+        prompt_key: promptKey,
         engine: engine,
         score: analysis.score,
         category: analysis.category || analysis.label || analysis.verdict || '',
@@ -272,7 +282,8 @@ function setSetting(key, value) {
 
 function findAnalysisByPrompt(promptText, engine = 'api') {
     const prompts = readJSON(DB_PATH);
-    return prompts.find(p => p.prompt_text === promptText && (p.engine === engine || (!p.engine && engine === 'api'))) || null;
+    const promptKey = normalizePrompt(promptText);
+    return prompts.find(p => normalizePrompt(p.prompt_text || p.prompt_key) === promptKey && (p.engine === engine || (!p.engine && engine === 'api'))) || null;
 }
 
 function toggleSave(id) {
@@ -303,6 +314,72 @@ function clearChatHistory() {
     writeJSON(CHATS_PATH, []);
 }
 
+// ===== Conversations (multi-chat) =====
+function readConversations() {
+    return readJSON(CONVERSATIONS_PATH);
+}
+
+function writeConversations(data) {
+    if (Array.isArray(data) && data.length > 5) {
+        data = data.slice(0, 5);
+    }
+    writeJSON(CONVERSATIONS_PATH, data);
+}
+
+function getConversations() {
+    return readConversations();
+}
+
+function createConversation(title = 'New chat') {
+    const convs = readConversations();
+    const id = Date.now();
+    const entry = { id, title: String(title || 'New chat'), messages: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    convs.unshift(entry);
+    writeConversations(convs);
+    return entry;
+}
+
+function getConversationById(id) {
+    const convs = readConversations();
+    return convs.find(c => Number(c.id) === Number(id)) || null;
+}
+
+function addMessageToConversation(id, role, content) {
+    const convs = readConversations();
+    const conv = convs.find(c => Number(c.id) === Number(id));
+    if (!conv) return null;
+    conv.messages.push({ role, content, ts: Date.now() });
+    conv.updated_at = new Date().toISOString();
+    writeConversations(convs);
+    return conv;
+}
+
+function updateConversationTitle(id, title) {
+    const convs = readConversations();
+    const conv = convs.find(c => Number(c.id) === Number(id));
+    if (!conv) return null;
+    conv.title = String(title || 'New chat');
+    conv.updated_at = new Date().toISOString();
+    writeConversations(convs);
+    return conv;
+}
+
+function deleteConversation(id) {
+    let convs = readConversations();
+    convs = convs.filter(c => Number(c.id) !== Number(id));
+    writeConversations(convs);
+}
+
+function clearConversationMessages(id) {
+    const convs = readConversations();
+    const conv = convs.find(c => Number(c.id) === Number(id));
+    if (!conv) return null;
+    conv.messages = [];
+    conv.updated_at = new Date().toISOString();
+    writeConversations(convs);
+    return conv;
+}
+
 module.exports = {
     initDatabase,
     saveAnalysis,
@@ -320,4 +397,13 @@ module.exports = {
     getChatHistory,
     addChatMessage,
     clearChatHistory
+    ,
+    // Conversations
+    getConversations,
+    createConversation,
+    getConversationById,
+    addMessageToConversation,
+    deleteConversation,
+    clearConversationMessages,
+    updateConversationTitle
 };

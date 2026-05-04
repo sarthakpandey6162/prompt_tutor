@@ -8,6 +8,7 @@ app.use(express.json());
 // In-memory storage (Vercel serverless = ephemeral filesystem)
 let promptHistory = [];
 let chatHistory = [];
+let conversations = [];
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_GROQ_API_KEY = String(process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim();
 const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
@@ -46,6 +47,12 @@ function consumeTokens(tokens) {
     const safe = Math.max(0, Math.round(Number(tokens) || 0));
     usageWindow.push({ ts: Date.now(), tokens: safe });
     pruneUsageWindow();
+}
+
+function normalizePrompt(text) {
+    return String(text || '')
+        .trim()
+        .replace(/\s+/g, ' ');
 }
 
 function detectPromptElements(text) {
@@ -353,10 +360,11 @@ app.post('/api/analyze', async (req, res) => {
         if (prompt.trim().length > 8000) return res.status(400).json({ error: 'Prompt too long. Keep it under 8000 characters.' });
 
         const cleanPrompt = prompt.trim();
+        const promptKey = normalizePrompt(cleanPrompt);
         const selectedMode = MODE_PROFILES[mode] ? mode : 'balanced';
         const profile = MODE_PROFILES[selectedMode];
 
-        const existing = promptHistory.find(p => p.prompt_text === cleanPrompt);
+        const existing = promptHistory.find(p => normalizePrompt(p.prompt_text) === promptKey);
         if (existing) {
             return res.json({ success: true, id: existing.id, analysis: existing, cached: true, mode: selectedMode, budget: getBudgetSnapshot() });
         }
@@ -398,6 +406,7 @@ app.post('/api/analyze', async (req, res) => {
             const entry = {
                 id: Date.now(),
                 prompt_text: cleanPrompt,
+                prompt_key: promptKey,
                 score: analysis.score,
                 category: analysis.category,
                 scoreLabel: analysis.scoreLabel,
@@ -474,7 +483,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `Analyze this prompt:\n"""${cleanPrompt}"""` }
             ],
-            temperature: profile.temperature,
+            temperature: 0,
             response_format: { type: 'json_object' },
             max_tokens: profile.maxTokens
         };
@@ -539,6 +548,7 @@ Scoring: 1-3 weak, 4-6 needs work, 7-8 good, 9-10 expert.`;
         const entry = {
             id: Date.now(),
             prompt_text: cleanPrompt,
+            prompt_key: promptKey,
             score: analysis.score || 0,
             category: analysis.category || analysis.label || analysis.verdict || '',
             scoreLabel: analysis.scoreLabel || analysis.label || '',
@@ -777,6 +787,45 @@ app.post('/api/chat/stream', async (req, res) => {
         res.write(`data: ${JSON.stringify({ error: err.message || 'Chat error' })}\n\n`);
         res.end();
     }
+});
+
+// Conversations (simple in-memory)
+app.get('/api/conversations', (req, res) => {
+    res.json(conversations);
+});
+
+app.post('/api/conversations', (req, res) => {
+    const title = String(req.body?.title || 'New chat');
+    const conv = { id: Date.now(), title, messages: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    conversations.unshift(conv);
+    res.json({ success: true, conversation: conv });
+});
+
+app.get('/api/conversations/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const conv = conversations.find(c => Number(c.id) === id);
+    if (!conv) return res.status(404).json({ error: 'Not found' });
+    res.json(conv.messages || []);
+});
+
+app.post('/api/conversations/:id/messages', (req, res) => {
+    const id = Number(req.params.id);
+    const conv = conversations.find(c => Number(c.id) === id);
+    if (!conv) return res.status(404).json({ error: 'Not found' });
+    const { role, content } = req.body || {};
+    if (!role || !content) return res.status(400).json({ error: 'role and content required' });
+    conv.messages.push({ role, content, ts: Date.now() });
+    conv.updated_at = new Date().toISOString();
+    res.json({ success: true, conversation: conv });
+});
+
+app.delete('/api/conversations/:id/messages', (req, res) => {
+    const id = Number(req.params.id);
+    const conv = conversations.find(c => Number(c.id) === id);
+    if (!conv) return res.status(404).json({ error: 'Not found' });
+    conv.messages = [];
+    conv.updated_at = new Date().toISOString();
+    res.json({ success: true, conversation: conv });
 });
 
 // --- Stats ---

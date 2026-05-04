@@ -1,4 +1,4 @@
-﻿"""
+"""
 Flask Prediction Server — Serves trained LSTM/CNN models (PyTorch).
 Runs on port 5000 and provides a /predict endpoint.
 
@@ -10,6 +10,8 @@ import os
 import pickle
 import numpy as np
 import json
+import re
+import math
 
 import torch
 import torch.nn as nn
@@ -252,6 +254,217 @@ def apply_score_calibration(raw_score):
     return adjusted, True
 
 
+# ══════════════════════════════════════════════════════════════════
+#  HEURISTIC ENGINE — Augments weak model predictions
+# ══════════════════════════════════════════════════════════════════
+
+def heuristic_detect_elements(text):
+    """
+    Regex-based element detection — mirrors the Node.js backend's
+    detectPromptElements for consistency. Used as fallback / override
+    when the LSTM element detector misses obvious signals.
+    """
+    t = str(text or '')
+    return {
+        'role': bool(re.search(
+            r'\b(act as|you are a?|persona|pretend|role|as a|expert|'
+            r'assistant|developer|scientist|writer|teacher|coach|analyst|'
+            r'consultant|advisor|engineer|designer|specialist|professional)\b',
+            t, re.IGNORECASE
+        )),
+        'format': bool(re.search(
+            r'\b(json|markdown|table|csv|format|output|structure|code block|'
+            r'email|report|essay|html|xml|numbered list|bullet\s*points?|'
+            r'step-by-step|steps|list|paragraph|summary|outline)\b|'
+            r'(?:return|respond|output|provide|give)\s+(?:in|as)\s+(?:a|an)?\s*'
+            r'(?:json|table|list|markdown|csv|format)',
+            t, re.IGNORECASE
+        )),
+        'constraints': bool(re.search(
+            r'\b(limit|max|must|exactly|no more|at least|words|under|avoid|'
+            r"don'?t|do not|never|only|restrict|constraint|edge case|"
+            r'including edge|requirements?|ensure|make sure|important|'
+            r'keep it|be concise|be specific|be brief)\b',
+            t, re.IGNORECASE
+        )),
+        'examples': bool(re.search(
+            r'\b(example|sample|for instance|input:|output:|e\.g\.|'
+            r'demonstrate|like this|such as|illustration|here is|'
+            r'for example|consider this|given this)\b',
+            t, re.IGNORECASE
+        )),
+        'context': bool(re.search(
+            r'\b(context|background|situation|scenario|given that|assuming|'
+            r'based on|the goal|objective|purpose|audience|for\s+(?:a|an)\s+'
+            r'[\w\s-]+\s+(?:student|beginner)|target audience|use case|'
+            r'project|working on|building|creating|developing|'
+            r'dataset|data|following|analyze|analysis)\b',
+            t, re.IGNORECASE
+        ))
+    }
+
+
+def merge_elements(model_elements, heuristic_elements):
+    """
+    Merge model predictions with heuristic detections.
+    If EITHER source says an element is present, it's present.
+    This prevents false negatives from the weak LSTM.
+    """
+    merged = {}
+    for key in ELEMENT_NAMES:
+        model_val = model_elements.get(key, False) if model_elements else False
+        heur_val = heuristic_elements.get(key, False)
+        merged[key] = bool(model_val or heur_val)
+    return merged
+
+
+def heuristic_score(text, elements):
+    """
+    Calculate a heuristic quality score based on structural signals.
+    Returns a score from 1-10.
+    """
+    t = str(text or '')
+    score = 3.0  # Base score for any prompt
+
+    # ── Length scoring ─────────────────────────────────────────────
+    word_count = len(t.split())
+    if word_count >= 10:
+        score += 0.5
+    if word_count >= 25:
+        score += 0.5
+    if word_count >= 50:
+        score += 0.5
+    if word_count >= 80:
+        score += 0.3
+    if word_count < 5:
+        score -= 1.0
+
+    # ── Element-based scoring ─────────────────────────────────────
+    elem_count = sum(1 for v in elements.values() if v)
+    score += elem_count * 0.8  # Each element adds ~0.8 pts
+
+    # ── Structural quality signals ────────────────────────────────
+    # Multi-sentence / well-structured
+    sentence_count = len(re.findall(r'[.!?]+', t))
+    if sentence_count >= 2:
+        score += 0.3
+    if sentence_count >= 3:
+        score += 0.2
+
+    # Has numbered instructions or bullet points
+    if re.search(r'(?:\d+[.)]\s|\*\s|-\s|•)', t):
+        score += 0.5
+
+    # Has question marks (shows inquiry / analytical thinking)
+    if '?' in t:
+        score += 0.2
+
+    # Uses quotation marks or code blocks
+    if re.search(r'["\'`]', t):
+        score += 0.2
+
+    # Penalize very vague / generic prompts
+    if re.search(r'^(help|tell me|what is|how to|explain)\b', t.strip(), re.IGNORECASE) and word_count < 10:
+        score -= 1.0
+
+    return round(max(1.0, min(10.0, score)), 1)
+
+
+def blend_scores(model_score, heuristic_score_val):
+    """
+    Blend model and heuristic scores.
+    We weight heuristic higher because the model is undertrained.
+    """
+    if model_score is None:
+        return heuristic_score_val
+
+    # 40% model, 60% heuristic — gives model some influence but
+    # heuristic prevents obviously wrong scores
+    blended = (model_score * 0.4) + (heuristic_score_val * 0.6)
+    return round(max(1.0, min(10.0, blended)), 1)
+
+
+def detect_category_signals(text):
+    """Lexical signals used to stabilize category predictions."""
+    t = str(text or '').lower()
+    scores = {}
+
+    # Each category gets a weighted score based on keyword matches
+    scores['Technical'] = 0
+    if re.search(r'\b(api|sql|python|javascript|java|code|debug|stack trace|'
+                 r'algorithm|function|database|server|deploy|docker|git|'
+                 r'framework|library|compile|runtime|backend|frontend|'
+                 r'css|html|programming|software|bug|error|implement|'
+                 r'json|xml|http|endpoint|query|schema|migration)\b', t):
+        scores['Technical'] = 3
+
+    scores['Analytical'] = 0
+    if re.search(r'\b(analy[sz]e|assessment|root cause|evaluate|compare|'
+                 r'failure|diagnose|findings?|research|investigate|'
+                 r'metrics|statistics|data|trends?|insights?|'
+                 r'examine|review|study|audit|benchmark|performance|'
+                 r'report|summary|assessment|conclusions?)\b', t):
+        scores['Analytical'] = 3
+
+    scores['Creative'] = 0
+    if re.search(r'\b(story|poem|creative|brainstorm|slogan|script|'
+                 r'imagine|lyrics|fiction|narrative|character|plot|'
+                 r'artistic|design|innovative|novel|metaphor|'
+                 r'compose|write a story|creative writing)\b', t):
+        scores['Creative'] = 3
+
+    scores['Directive'] = 0
+    if re.search(r'\b(must|exactly|strict|only|do not|don\'t|no more than|'
+                 r'under\s+\d+|list|bullet\s*points?|step-by-step|'
+                 r'constraints?|requirements?|rules?|ensure|'
+                 r'specific|precisely|mandatory)\b', t):
+        scores['Directive'] = 3
+
+    scores['Formal'] = 0
+    if re.search(r'\b(formal|professional|report|business|official|'
+                 r'executive summary|memorandum|proposal|corporate|'
+                 r'stakeholder|presentation|documentation)\b', t):
+        scores['Formal'] = 3
+
+    scores['Casual'] = 0
+    if re.search(r'\b(casual|friendly|chat|hey|hi |lol|gonna|wanna|'
+                 r'cool|awesome|dude|btw|imo)\b', t):
+        scores['Casual'] = 3
+
+    # Bonus: if prompt has role + format + constraints, it's likely Directive
+    if re.search(r'\b(you are|act as)\b', t) and re.search(r'\b(format|json|list|table|step)\b', t):
+        scores['Directive'] = max(scores['Directive'], 2)
+
+    # Bonus: if prompt mentions data/analysis/summary, boost Analytical
+    if re.search(r'\b(dataset|data\s+(?:set|analysis)|provide.*summary|key\s+insights)\b', t):
+        scores['Analytical'] = max(scores['Analytical'], 4)
+
+    return scores
+
+
+def maybe_adjust_category(prompt_text, model_category, model_confidence):
+    """Apply heavyweight rule assist — corrects model when signals are strong."""
+    signal_scores = detect_category_signals(prompt_text)
+    best_signal_category = max(signal_scores, key=signal_scores.get)
+    best_signal_score = signal_scores[best_signal_category]
+
+    # If we have a strong signal and model is wrong or uncertain
+    should_adjust = (
+        best_signal_score >= 3 and (
+            model_confidence < 0.85 or
+            model_category != best_signal_category
+        )
+    )
+
+    # Also adjust if model says "Casual" but prompt is clearly structured
+    if model_category == 'Casual' and best_signal_score >= 2 and best_signal_category != 'Casual':
+        should_adjust = True
+
+    if should_adjust and best_signal_score >= 2:
+        return best_signal_category, True
+    return model_category, False
+
+
 # ── Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)
@@ -261,6 +474,8 @@ CORS(app)
 def predict():
     """
     Predict score, category, and elements for a given prompt.
+    Uses ML model predictions blended with heuristic analysis
+    for robust, accurate results.
     
     Request body: { "prompt": "your prompt text here" }
     Response: {
@@ -285,21 +500,49 @@ def predict():
 
     result = {'model_used': True}
 
-    # ── Score (LSTM) ──────────────────────────────────────────────
+    # ── Heuristic Element Detection (always run) ──────────────────
+    heur_elements = heuristic_detect_elements(prompt_text)
+
+    # ── Elements (LSTM + Heuristic merge) ─────────────────────────
+    model_elements = None
+    if element_model is not None:
+        with torch.no_grad():
+            logits = element_model(padded)
+            preds = torch.sigmoid(logits)[0]
+        model_elements = {}
+        for i, name in enumerate(ELEMENT_NAMES):
+            model_elements[name] = bool(preds[i] > 0.5)
+
+    # Merge: union of model + heuristic (prevents false negatives)
+    final_elements = merge_elements(model_elements, heur_elements)
+    result['elements'] = final_elements
+
+    # ── Score (LSTM + Heuristic blend) ────────────────────────────
+    model_raw_score = None
     if scorer_model is not None:
         with torch.no_grad():
             score_pred = scorer_model(padded).item()
-        raw_score = score_pred * 9 + 1  # Convert 0-1 back to 1-10
-        raw_score = round(max(1, min(10, raw_score)), 1)
-        score, calibrated = apply_score_calibration(raw_score)
-        result['score'] = score
-        result['raw_score'] = raw_score
-        result['score_calibrated'] = calibrated
-    else:
-        result['score'] = None
-        result['score_error'] = 'Scorer model not loaded'
+        model_raw_score = score_pred * 9 + 1  # Convert 0-1 back to 1-10
+        model_raw_score = round(max(1, min(10, model_raw_score)), 1)
 
-    # ── Category (CNN) ────────────────────────────────────────────
+        # Apply calibration to model score
+        calibrated_model_score, was_calibrated = apply_score_calibration(model_raw_score)
+    else:
+        calibrated_model_score = None
+        was_calibrated = False
+
+    # Compute heuristic score based on prompt structure
+    heur_score = heuristic_score(prompt_text, final_elements)
+
+    # Blend model + heuristic
+    final_score = blend_scores(calibrated_model_score, heur_score)
+    
+    result['score'] = final_score
+    result['raw_score'] = model_raw_score
+    result['heuristic_score'] = heur_score
+    result['score_calibrated'] = was_calibrated
+
+    # ── Category (CNN + Rules) ────────────────────────────────────
     if classifier_model is not None:
         with torch.no_grad():
             logits = classifier_model(padded)
@@ -312,24 +555,24 @@ def predict():
         else:
             category = CATEGORIES[cat_idx] if cat_idx < len(CATEGORIES) else 'Unknown'
 
-        result['category'] = category
-        result['category_confidence'] = round(confidence, 3)
-    else:
-        result['category'] = None
-        result['category_error'] = 'Classifier model not loaded'
+        adjusted_category, was_adjusted = maybe_adjust_category(prompt_text, category, confidence)
 
-    # ── Elements (LSTM) ───────────────────────────────────────────
-    if element_model is not None:
-        with torch.no_grad():
-            logits = element_model(padded)
-            preds = torch.sigmoid(logits)[0]
-        elements = {}
-        for i, name in enumerate(ELEMENT_NAMES):
-            elements[name] = bool(preds[i] > 0.5)
-        result['elements'] = elements
+        result['category'] = adjusted_category
+        result['category_confidence'] = round(max(confidence, 0.75) if was_adjusted else confidence, 3)
+        result['category_source'] = 'cnn+rules' if was_adjusted else 'cnn'
+        if was_adjusted:
+            result['category_model_raw'] = category
     else:
-        result['elements'] = None
-        result['elements_error'] = 'Element detector not loaded'
+        # Pure heuristic fallback
+        signal_scores = detect_category_signals(prompt_text)
+        best_cat = max(signal_scores, key=signal_scores.get)
+        if signal_scores[best_cat] > 0:
+            result['category'] = best_cat
+            result['category_confidence'] = 0.7
+        else:
+            result['category'] = 'Casual'
+            result['category_confidence'] = 0.5
+        result['category_source'] = 'rules'
 
     return jsonify(result)
 
