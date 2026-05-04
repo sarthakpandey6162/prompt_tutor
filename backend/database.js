@@ -6,10 +6,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'prompts.json');
-const SETTINGS_PATH = path.join(__dirname, 'settings.json');
-const CHATS_PATH = path.join(__dirname, 'chats.json');
-const CONVERSATIONS_PATH = path.join(__dirname, 'conversations.json');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+
+const DB_PATH = path.join(DATA_DIR, 'prompts.json');
+const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+const CHATS_PATH = path.join(DATA_DIR, 'chats.json');
+const CONVERSATIONS_PATH = path.join(DATA_DIR, 'conversations.json');
 
 // Initialize empty files if they don't exist
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify([]));

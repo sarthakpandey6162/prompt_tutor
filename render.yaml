@@ -1,0 +1,36 @@
+services:
+  # 1. The ML Python Backend
+  - type: web
+    name: prompt-tutor-ml
+    env: python
+    buildCommand: "pip install -r ml_models/requirements.txt"
+    startCommand: "cd ml_models && gunicorn serve:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    # Starter instance needed because PyTorch needs >512MB RAM
+    plan: starter
+
+  # 2. The Node.js Web Server (Backend + Frontend)
+  - type: web
+    name: prompt-tutor-web
+    env: node
+    buildCommand: "npm install --prefix backend"
+    startCommand: "npm run start"
+    envVars:
+      - key: NODE_VERSION
+        value: 18.18.0
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: prompt-tutor-ml
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DATA_DIR
+        value: /data
+      - key: GROQ_API_KEY
+        sync: false
+    # Mount persistent disk so chats and prompts aren't lost
+    disk:
+      name: prompt-tutor-data
+      mountPath: /data
+      sizeGB: 1
