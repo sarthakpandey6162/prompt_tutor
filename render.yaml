@@ -4,7 +4,7 @@ services:
     name: prompt-tutor-ml
     env: python
     buildCommand: "pip install -r ml_models/requirements.txt"
-    startCommand: "cd ml_models && gunicorn serve:app"
+    startCommand: "cd ml_models && gunicorn serve:app --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
