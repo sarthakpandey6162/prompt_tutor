@@ -17,21 +17,21 @@ It combines prompt scoring, AI-powered rewrites, chat tutoring, a prompt library
 
 - Frontend: HTML, CSS, Vanilla JavaScript
 - Backend: Node.js + Express
+- ML Models: PyTorch + Flask API
 - AI Provider: Groq Chat Completions API
 - Charts: Chart.js
-- Local storage (development backend): JSON files under backend/
-- Serverless deployment: Vercel (ephemeral in-memory storage in api/index.js)
+- Storage: Persistent JSON files (designed for persistent disks)
 
 ## Project Structure
 
 ```text
 .
-├─ api/                 # Vercel serverless API (in-memory data at runtime)
-├─ backend/             # Local Express server with JSON file persistence
+├─ backend/             # Node.js/Express server with JSON file persistence
 ├─ frontend/            # Web UI
-├─ tests/               # API integration tests (node:test + supertest)
-├─ package.json         # Root scripts (tests)
-├─ vercel.json          # Vercel routing/build config
+├─ ml_models/           # PyTorch Models & Flask API
+├─ tests/               # API integration tests
+├─ package.json         # Root scripts
+├─ render.yaml          # Render Blueprint infrastructure config
 └─ README.md
 ```
 
@@ -39,28 +39,34 @@ It combines prompt scoring, AI-powered rewrites, chat tutoring, a prompt library
 
 ### 1. Install dependencies
 
-From project root (test dependencies):
-
-```bash
-npm install
-```
-
-From backend folder (app server dependencies):
+From backend folder (Node.js server):
 
 ```bash
 cd backend
 npm install
 ```
 
-### 2. Run the backend server
+From ML folder (Python ML service):
+
+```bash
+cd ml_models
+pip install -r requirements.txt
+```
+
+### 2. Run the servers
+
+Run the backend server (Terminal 1):
 
 ```bash
 npm start
 ```
 
-Server runs on:
+Run the ML server (Terminal 2):
 
-- http://localhost:3000
+```bash
+cd ml_models
+python serve.py
+```
 
 ### 3. Open the app
 
@@ -70,73 +76,34 @@ Visit:
 
 ### 4. Configure API key
 
-Use the in-app Settings modal to save your Groq key, or set it via API.
+Use the in-app Settings modal to save your Groq key, or set it via environment variables (`GROQ_API_KEY`).
 
-Local backend stores key in backend/settings.json.
+## Hybrid ML Heuristic Engine
 
-## Running Tests
+The local ML prediction engine uses a powerful **hybrid** approach to ensure professional-grade, API-level scoring locally:
+1. **Raw Predictions:** It queries the custom PyTorch BiLSTM and CNN models.
+2. **Regex Augmentation:** It intercepts the predictions and uses advanced Regular Expressions to guarantee perfect detection of specific elements (like JSON formats or constrained word counts).
+3. **Structural Blending:** The engine calculates a secondary score based on writing quality (sentence count, formatting, detail) and blends it 60/40 with the calibrated PyTorch score.
 
-From project root:
+This guarantees high-quality, realistic feedback without needing thousands of hours of retraining!
 
-```bash
-npm test
-```
+## Deployment (Render)
 
-## Improve Local Model Accuracy (Simple Steps)
+This repository is fully configured to be deployed on [Render](https://render.com) using the included `render.yaml` Blueprint.
 
-If your local score and API score are far apart, use this easy 4-step workflow.
+Unlike Vercel, Render supports **Persistent Disks** (so you don't lose your chat history) and **Background Workers** (so you can easily run the PyTorch models).
 
-From project root:
+### How to deploy:
+1. Go to your [Render Dashboard](https://dashboard.render.com/).
+2. Click **New +** and select **Blueprint**.
+3. Connect your GitHub repository.
+4. Click **Apply**.
 
-1. Label prompts with API score/category
+Render will automatically provision two services:
+1. **prompt-tutor-ml:** A Python web service running the ML models via Gunicorn.
+2. **prompt-tutor-web:** A Node.js web service running your backend, connected automatically to the ML service and a persistent `/data` disk.
 
-```bash
-cd ml_models
-python label_with_groq.py --input dataset/prompts_dataset.csv --output dataset/prompts_api_labeled.csv --limit 600
-```
-
-2. Rebalance low/mid/high score bins
-
-```bash
-python rebalance_dataset.py --input dataset/prompts_api_labeled.csv --output dataset/prompts_train_rebalanced.csv --score-column api_score
-```
-
-3. Evaluate local-vs-API alignment (requires local ML server running)
-
-```bash
-python evaluate_alignment.py --input dataset/prompts_api_labeled.csv --output dataset/alignment_results.csv --limit 200
-```
-
-4. Fit score calibration and apply automatically in local server
-
-```bash
-python fit_score_calibration.py --input dataset/alignment_results.csv --output saved_models/score_calibration.json
-```
-
-After step 4, restart the ML server. It will auto-load calibration from:
-
-- ml_models/saved_models/score_calibration.json
-
-Success target:
-
-- MAE <= 1.5 between local score and API score on a fixed test set.
-
-## Deployment (Vercel)
-
-This repo is configured for Vercel via vercel.json:
-
-- /api/* routes to api/index.js
-- Frontend static files are served from frontend/
-
-Important behavior on Vercel:
-
-- Data is in-memory and ephemeral in api/index.js
-- API key is session-only: users must provide it each login/session
-
-Required Vercel environment variables:
-
-- GROQ_API_KEY (or GROQ_KEY)
-- GROQ_MODEL (optional, defaults to llama-3.1-8b-instant)
+*Note: Make sure to add your `GROQ_API_KEY` in the Render Environment Variables tab after the setup completes.*
 
 ## API Overview
 
@@ -145,14 +112,8 @@ Required Vercel environment variables:
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | /api/health | Service health check |
+| GET | /api/ml/health | ML Service health check |
 | GET | /api/usage | Current token budget snapshot |
-| POST | /api/settings/apikey | Validate session API key (not persisted) |
-| GET | /api/settings/apikey/status | Always unconfigured (session-only flow) |
-
-Compatibility aliases also exist in serverless API:
-
-- POST /api/set-api-key
-- GET /api/check-api-key
 
 ### Prompt Analysis and Crafting
 
@@ -160,6 +121,7 @@ Compatibility aliases also exist in serverless API:
 |---|---|---|
 | POST | /api/analyze | Analyze prompt and generate improved variants |
 | POST | /api/craft-prompt | Build a high-quality prompt from an idea |
+| POST | /api/ml/test | Compare ML model to API benchmark |
 
 ### History and Stats
 
@@ -190,20 +152,3 @@ If internet access or API quota is unreliable:
 3. Use Craft, Library, Stats, and Chat with realistic mock behavior
 
 Demo Mode is useful for classroom demos, evaluations, and offline showcases.
-
-## Known Differences: Local vs Vercel
-
-- Local backend (backend/server.js): JSON file persistence
-- Vercel API (api/index.js): in-memory runtime data (resets on cold start/redeploy)
-
-## 2-Minute Demo Script
-
-1. Open Craft and analyze a sample prompt
-2. Show score, missing elements, and improved variants
-3. Save to Library and demonstrate search/filter
-4. Open Stats and explain trend + element coverage
-5. Ask Tutor Chat for prompt refinement advice
-
-## License
-
-No license file is currently included in this repository.
